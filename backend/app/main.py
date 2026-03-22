@@ -1,0 +1,386 @@
+import os
+from datetime import date
+from typing import List
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
+
+from app.auth_core import create_access_token, hash_password, verify_password
+from app.database import SessionLocal, get_db, init_db
+from app.deps import get_current_user, require_master
+from app.models import DailyEntry, Project, Stage, User
+from app.schemas import (
+    BulkExecutedBody,
+    BulkPlannedBody,
+    DailyEntryIn,
+    DailyEntryOut,
+    DashboardOut,
+    LoginIn,
+    ProjectCreate,
+    ProjectOut,
+    StageCreate,
+    StageOut,
+    StageUpdate,
+    TokenOut,
+    UserCreateByMaster,
+    UserOut,
+)
+from app.services.dashboard import build_dashboard
+
+app = FastAPI(title="Obra Controle", version="1.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def bootstrap_master(db: Session) -> None:
+    n = db.scalar(select(func.count(User.id)))
+    if n and n > 0:
+        return
+    u = os.getenv("MASTER_USERNAME", "admin").strip() or "admin"
+    p = os.getenv("MASTER_PASSWORD", "admin")
+    if len(p) < 4:
+        p = "admin"
+    db.add(
+        User(
+            username=u,
+            password_hash=hash_password(p),
+            is_master=True,
+            is_active=True,
+        )
+    )
+    db.commit()
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+    db = SessionLocal()
+    try:
+        bootstrap_master(db)
+    finally:
+        db.close()
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "Obra Controle API",
+        "docs": "/docs",
+        "health": "/api/health",
+        "hint": "Interface em http://127.0.0.1:5173 após login em /api/auth/login",
+    }
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}
+
+
+# --- Auth ---
+
+
+@app.post("/api/auth/login", response_model=TokenOut)
+def login(body: LoginIn, db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.username == body.username.strip()))
+    if not user or not user.is_active or not verify_password(body.password, user.password_hash):
+        raise HTTPException(401, "Usuário ou senha inválidos")
+    token = create_access_token(user.id, user.username, user.is_master)
+    return TokenOut(access_token=token, user=UserOut.model_validate(user))
+
+
+@app.get("/api/auth/me", response_model=UserOut)
+def me(user: User = Depends(get_current_user)):
+    return user
+
+
+@app.get("/api/users", response_model=List[UserOut])
+def list_users(_: User = Depends(require_master), db: Session = Depends(get_db)):
+    return db.scalars(select(User).order_by(User.id)).all()
+
+
+@app.post("/api/users", response_model=UserOut)
+def create_user(
+    body: UserCreateByMaster,
+    _: User = Depends(require_master),
+    db: Session = Depends(get_db),
+):
+    if db.scalar(select(User).where(User.username == body.username.strip())):
+        raise HTTPException(400, "Nome de usuário já existe")
+    u = User(
+        username=body.username.strip(),
+        password_hash=hash_password(body.password),
+        is_master=body.is_master,
+        is_active=True,
+    )
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+@app.delete("/api/users/{user_id}")
+def delete_user(
+    user_id: int,
+    admin: User = Depends(require_master),
+    db: Session = Depends(get_db),
+):
+    if user_id == admin.id:
+        raise HTTPException(400, "Não é possível excluir o próprio usuário")
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(404, "Usuário não encontrado")
+    db.delete(u)
+    db.commit()
+    return {"ok": True}
+
+
+# --- Projetos ---
+
+
+@app.post("/api/projects", response_model=ProjectOut)
+def create_project(
+    body: ProjectCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = Project(name=body.name.strip(), description=body.description)
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return p
+
+
+@app.get("/api/projects", response_model=List[ProjectOut])
+def list_projects(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    return db.scalars(select(Project).order_by(Project.id.desc())).all()
+
+
+@app.get("/api/projects/{project_id}", response_model=ProjectOut)
+def get_project(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    return p
+
+
+@app.delete("/api/projects/{project_id}")
+def delete_project(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    db.delete(p)
+    db.commit()
+    return {"ok": True}
+
+
+# --- Etapas ---
+
+
+@app.post("/api/projects/{project_id}/stages", response_model=StageOut)
+def create_stage(
+    project_id: int,
+    body: StageCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    st = Stage(
+        project_id=project_id,
+        name=body.name.strip(),
+        weight=body.weight,
+        total_quantity=body.total_quantity,
+        unit=body.unit,
+        sort_order=body.sort_order,
+    )
+    db.add(st)
+    db.commit()
+    db.refresh(st)
+    return st
+
+
+@app.get("/api/projects/{project_id}/stages", response_model=List[StageOut])
+def list_stages(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    return db.scalars(
+        select(Stage).where(Stage.project_id == project_id).order_by(Stage.sort_order, Stage.id)
+    ).all()
+
+
+@app.patch("/api/stages/{stage_id}", response_model=StageOut)
+def update_stage(
+    stage_id: int,
+    body: StageUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    st = db.get(Stage, stage_id)
+    if not st:
+        raise HTTPException(404, "Etapa não encontrada")
+    data = body.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(st, k, v)
+    db.commit()
+    db.refresh(st)
+    return st
+
+
+@app.delete("/api/stages/{stage_id}")
+def delete_stage(stage_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    st = db.get(Stage, stage_id)
+    if not st:
+        raise HTTPException(404, "Etapa não encontrada")
+    db.delete(st)
+    db.commit()
+    return {"ok": True}
+
+
+# --- Lançamentos ---
+
+
+@app.get("/api/stages/{stage_id}/entries", response_model=List[DailyEntryOut])
+def list_entries(stage_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    st = db.get(Stage, stage_id)
+    if not st:
+        raise HTTPException(404, "Etapa não encontrada")
+    return db.scalars(
+        select(DailyEntry).where(DailyEntry.stage_id == stage_id).order_by(DailyEntry.day)
+    ).all()
+
+
+@app.put("/api/stages/{stage_id}/entries/{day}", response_model=DailyEntryOut)
+def upsert_entry(
+    stage_id: int,
+    day: date,
+    body: DailyEntryIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    st = db.get(Stage, stage_id)
+    if not st:
+        raise HTTPException(404, "Etapa não encontrada")
+    if body.day != day:
+        raise HTTPException(400, "Data do corpo deve coincidir com a URL")
+
+    row = db.scalar(select(DailyEntry).where(DailyEntry.stage_id == stage_id, DailyEntry.day == day))
+    if row:
+        row.planned_optimistic = body.planned_optimistic
+        row.planned_pessimistic = body.planned_pessimistic
+        row.executed = body.executed
+        if body.execution_note is not None:
+            row.execution_note = body.execution_note
+    else:
+        row = DailyEntry(
+            stage_id=stage_id,
+            day=day,
+            planned_optimistic=body.planned_optimistic,
+            planned_pessimistic=body.planned_pessimistic,
+            executed=body.executed,
+            execution_note=body.execution_note,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.post("/api/projects/{project_id}/entries/bulk-planned")
+def bulk_planned(
+    project_id: int,
+    body: BulkPlannedBody,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    stage_ids = set(db.scalars(select(Stage.id).where(Stage.project_id == project_id)).all())
+    count = 0
+    for item in body.entries:
+        if item.stage_id not in stage_ids:
+            raise HTTPException(400, f"Etapa {item.stage_id} não pertence ao projeto")
+        row = db.scalar(
+            select(DailyEntry).where(DailyEntry.stage_id == item.stage_id, DailyEntry.day == item.day)
+        )
+        if row:
+            row.planned_optimistic = item.planned_optimistic
+            row.planned_pessimistic = item.planned_pessimistic
+        else:
+            db.add(
+                DailyEntry(
+                    stage_id=item.stage_id,
+                    day=item.day,
+                    planned_optimistic=item.planned_optimistic,
+                    planned_pessimistic=item.planned_pessimistic,
+                    executed=0.0,
+                    execution_note=None,
+                )
+            )
+        count += 1
+    db.commit()
+    return {"upserted": count}
+
+
+@app.post("/api/projects/{project_id}/entries/bulk-executed")
+def bulk_executed(
+    project_id: int,
+    body: BulkExecutedBody,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    stage_ids = set(db.scalars(select(Stage.id).where(Stage.project_id == project_id)).all())
+    count = 0
+    for item in body.entries:
+        if item.stage_id not in stage_ids:
+            raise HTTPException(400, f"Etapa {item.stage_id} não pertence ao projeto")
+        row = db.scalar(
+            select(DailyEntry).where(DailyEntry.stage_id == item.stage_id, DailyEntry.day == item.day)
+        )
+        note = (item.execution_note or "").strip() or None
+        if row:
+            row.executed = item.executed
+            row.execution_note = note
+        else:
+            db.add(
+                DailyEntry(
+                    stage_id=item.stage_id,
+                    day=item.day,
+                    planned_optimistic=0.0,
+                    planned_pessimistic=0.0,
+                    executed=item.executed,
+                    execution_note=note,
+                )
+            )
+        count += 1
+    db.commit()
+    return {"upserted": count}
+
+
+# --- Painel ---
+
+
+@app.get("/api/projects/{project_id}/dashboard", response_model=DashboardOut)
+def get_dashboard(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.stages).joinedload(Stage.entries))
+        .where(Project.id == project_id)
+    )
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    data = build_dashboard(p)
+    return DashboardOut.model_validate(data)

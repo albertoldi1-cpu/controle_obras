@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 min-h-screen;
+  background-image: theme(backgroundImage.mesh);
+  background-attachment: fixed;
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-ink-900/70 backdrop-blur-xl border border-white/10 shadow-glass;
+  }
+  .text-gradient {
+    @apply bg-gradient-to-r from-white via-slate-200 to-accent-glow bg-clip-text text-transparent;
+  }
+}
+
+/* Recharts tooltip */
+.recharts-default-tooltip {
+  @apply !rounded-lg !border !border-white/10 !bg-ink-900/95 !text-slate-200;
+}
