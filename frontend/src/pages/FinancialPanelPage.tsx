@@ -334,6 +334,10 @@ export default function FinancialPanelPage() {
         <div className="glass rounded-2xl p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Total produzido</p>
           <p className="mt-2 font-display text-2xl font-bold text-emerald-300">{brl(data.summary.total_produced_brl)}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Soma dos valores de <strong className="text-slate-400">realizado do dia</strong> (produzido por equipe) no
+            período filtrado.
+          </p>
         </div>
         <div className="glass rounded-2xl p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Desvio</p>
@@ -356,12 +360,13 @@ export default function FinancialPanelPage() {
       </div>
 
       <section className="glass rounded-2xl p-6">
-        <h2 className="font-display text-xl font-semibold text-white">Avanço produtivo</h2>
+        <h2 className="font-display text-xl font-semibold text-white">Evolução diária</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Linhas acumuladas: meta total das equipes × valor produzido (comparativo de desvio no período filtrado).
+          Eixo esquerdo (R$): meta total das equipes e valor produzido acumulados. Eixo direito (%): avanço físico da obra
+          e avanço produtivo (produzido acumulado ÷ valor total da obra).
         </p>
         <div className="mt-6">
-          <FinancialPlannedProducedChart data={data.series} />
+          <FinancialPlannedProducedChart data={data.series} obraTotalBrl={data.obra_total_value_brl} />
         </div>
       </section>
 

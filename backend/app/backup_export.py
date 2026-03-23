@@ -55,6 +55,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "name": p.name,
                 "description": p.description,
                 "created_at": p.created_at.isoformat() if p.created_at else None,
+                "obra_total_value_brl": p.obra_total_value_brl,
             }
             for p in projects
         ],

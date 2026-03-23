@@ -74,6 +74,7 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
                 id=row["id"],
                 name=row["name"],
                 description=row.get("description"),
+                obra_total_value_brl=row.get("obra_total_value_brl"),
             )
         )
 

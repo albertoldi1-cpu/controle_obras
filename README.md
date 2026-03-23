@@ -276,7 +276,7 @@ A **interface não fica na porta 8000**. Se abrir só `http://127.0.0.1:8000`, v
 2. Crie um **projeto** na página inicial.  
 3. Em **Etapas**, cadastre cada etapa: **peso** (0–1, o mesmo peso vale para **ambos** os cenários), **quantidade total** e unidade. Use **editar** (ícone lápis) ao lado de excluir para alterar uma etapa.  
 4. Em **Lançamentos**, use a **janela de planejamento** (otimista/pessimista por dia) e o botão **Salvar planejamento**; use a **janela de execução** (produzido + **observação** do dia) e **Salvar execução e observações**.  
-5. Abra **Painel** para farol, curva S (linha executada até o último dia com produção), desvios em % e tendência.
+5. Abra **Painel** para farol, curva S (linha executada até o último dia com produção), desvios em % e tendência. Na seção **Planejamento vs cadastro**, compare a quantidade cadastrada por etapa com a soma de todos os planejamentos diários (otimista/pessimista), com falta a planejar e desvio % — assim fica claro o que falta lançar para a curva S fechar 100%.
 
 ## Compartilhar na web (produção)
 

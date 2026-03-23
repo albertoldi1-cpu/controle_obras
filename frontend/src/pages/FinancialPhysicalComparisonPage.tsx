@@ -67,12 +67,17 @@ export default function FinancialPhysicalComparisonPage() {
     }
   }
 
+  const { summary } = data;
+  const hasObra = summary.obra_total_value_brl > 1e-9;
+  const hasPlanDays = summary.planned_financial_days_count > 0;
+
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] to-transparent p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Comparativo Físico × Produtivo</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Correlação entre avanço físico executado (%), valor produzido (R$) e quantidade produtiva dos lançamentos.
+          Avanço físico executado (%), valor produzido por dia (soma do realizado / produzido dia) e referência diária da
+          obra (valor total ÷ dias com planejamento financeiro distintos).
         </p>
       </div>
 
@@ -108,19 +113,34 @@ export default function FinancialPhysicalComparisonPage() {
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="glass rounded-2xl p-5">
           <p className="text-xs uppercase tracking-wider text-slate-500">Avanço físico executado</p>
-          <p className="mt-2 font-display text-2xl font-bold text-white">{data.summary.physical_executed_pct.toFixed(2)}%</p>
+          <p className="mt-2 font-display text-2xl font-bold text-white">{summary.physical_executed_pct.toFixed(2)}%</p>
         </div>
         <div className="glass rounded-2xl p-5">
           <p className="text-xs uppercase tracking-wider text-slate-500">Total produzido</p>
-          <p className="mt-2 font-display text-2xl font-bold text-emerald-300">{brl(data.summary.total_produced_brl)}</p>
+          <p className="mt-2 font-display text-2xl font-bold text-emerald-300">{brl(summary.total_produced_brl)}</p>
+          <p className="mt-2 text-xs text-slate-500">Soma do produzido (R$) por dia no período.</p>
         </div>
         <div className="glass rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-500">Quantidade produtiva</p>
-          <p className="mt-2 font-display text-2xl font-bold text-indigo-300">
-            {data.summary.total_productive_quantity.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
+          <p className="text-xs uppercase tracking-wider text-slate-500">Valor total da obra</p>
+          <p className="mt-2 font-display text-2xl font-bold text-indigo-200">
+            {hasObra ? brl(summary.obra_total_value_brl) : "—"}
+          </p>
+          {!hasObra && (
+            <p className="mt-2 text-xs text-amber-200/90">Cadastre no topo do projeto.</p>
+          )}
+        </div>
+        <div className="glass rounded-2xl p-5">
+          <p className="text-xs uppercase tracking-wider text-slate-500">Referência diária da obra</p>
+          <p className="mt-2 font-display text-2xl font-bold text-sky-300">
+            {hasObra && hasPlanDays ? brl(summary.daily_obra_reference_brl) : "—"}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            {hasPlanDays
+              ? `Valor total ÷ ${summary.planned_financial_days_count} dia(s) com meta planejada.`
+              : "Sem dias de planejamento financeiro no período."}
           </p>
         </div>
       </div>
@@ -139,10 +159,39 @@ export default function FinancialPhysicalComparisonPage() {
                 tick={{ fill: "#94a3b8", fontSize: 11 }}
                 tickFormatter={(v) => `${(Number(v) / 1000).toFixed(0)}k`}
               />
-              <Tooltip />
+              <Tooltip
+                contentStyle={{
+                  background: "rgba(15,23,42,0.96)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 12,
+                }}
+                formatter={(v: number | string | undefined, name: string, item) => {
+                  const n = typeof v === "number" ? v : Number(v);
+                  if (Number.isNaN(n)) return ["—", name];
+                  const key = item && "dataKey" in item ? String(item.dataKey) : "";
+                  if (key === "physical_executed_pct") return [`${n.toFixed(2)}%`, name];
+                  return [brl(n), name];
+                }}
+              />
               <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="physical_executed_pct" name="Executado físico (%)" stroke="#60a5fa" strokeWidth={3} dot={false} />
-              <Line yAxisId="right" type="monotone" dataKey="produced_value_brl" name="Produzido (R$ dia)" stroke="#34d399" strokeWidth={2.5} dot={false} />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="physical_executed_pct"
+                name="Executado físico (%)"
+                stroke="#60a5fa"
+                strokeWidth={3}
+                dot={false}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="produced_value_brl"
+                name="Produzido (R$ dia)"
+                stroke="#34d399"
+                strokeWidth={2.5}
+                dot={false}
+              />
               <Line
                 yAxisId="right"
                 type="monotone"
@@ -163,7 +212,17 @@ export default function FinancialPhysicalComparisonPage() {
                 strokeWidth={2}
                 dot={false}
               />
-              <Line yAxisId="right" type="monotone" dataKey="productive_quantity" name="Quantidade produtiva (dia)" stroke="#a78bfa" strokeWidth={2} dot={false} />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="daily_obra_reference_brl"
+                name="Referência diária obra (R$)"
+                stroke="#38bdf8"
+                strokeDasharray="4 4"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>

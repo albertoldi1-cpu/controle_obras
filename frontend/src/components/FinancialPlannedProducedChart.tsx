@@ -20,7 +20,15 @@ function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 
-export default function FinancialPlannedProducedChart({ data }: { data: FinancialPanelSeriesPoint[] }) {
+const PCT_KEYS = new Set(["physical_executed_pct", "productive_advance_pct"]);
+
+export default function FinancialPlannedProducedChart({
+  data,
+  obraTotalBrl,
+}: {
+  data: FinancialPanelSeriesPoint[];
+  obraTotalBrl?: number | null;
+}) {
   const chartData = data.map((p) => ({
     ...p,
     label: fmtDay(p.day),
@@ -61,14 +69,22 @@ export default function FinancialPlannedProducedChart({ data }: { data: Financia
     }
   }
 
+  const hasObraTotal = obraTotalBrl != null && obraTotalBrl > 1e-9;
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-400">
         Comparativo acumulado no fim do período exibido: {deviationLine}.
       </p>
-      <div className="h-[400px] w-full">
+      {!hasObraTotal && (
+        <p className="text-xs text-amber-200/90">
+          Defina o <strong className="text-amber-100">valor total da obra</strong> no topo da página do projeto para
+          calcular o avanço produtivo (%).
+        </p>
+      )}
+      <div className="h-[440px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: 20, left: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 6" stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis
               dataKey="label"
@@ -78,10 +94,20 @@ export default function FinancialPlannedProducedChart({ data }: { data: Financia
               interval="preserveStartEnd"
             />
             <YAxis
+              yAxisId="brl"
               tick={{ fill: "#94a3b8", fontSize: 11 }}
               tickLine={false}
               axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
               tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+            />
+            <YAxis
+              yAxisId="pct"
+              orientation="right"
+              domain={[0, 100]}
+              tick={{ fill: "#94a3b8", fontSize: 11 }}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+              tickFormatter={(v) => `${v}%`}
             />
             <Tooltip
               contentStyle={{
@@ -89,14 +115,17 @@ export default function FinancialPlannedProducedChart({ data }: { data: Financia
                 border: "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 12,
               }}
-              formatter={(v: number | string | undefined, name: string) => {
+              formatter={(v: number | string | undefined, name: string, item) => {
                 const n = typeof v === "number" ? v : Number(v);
                 if (Number.isNaN(n)) return ["—", name];
+                const key = item && "dataKey" in item ? String(item.dataKey) : "";
+                if (PCT_KEYS.has(key)) return [`${n.toFixed(2)}%`, name];
                 return [brl(n), name];
               }}
             />
             <Legend wrapperStyle={{ paddingTop: 12 }} />
             <Line
+              yAxisId="brl"
               type="monotone"
               dataKey="cumulative_planned_brl"
               name="Meta Total das Equipes (acum.)"
@@ -105,12 +134,31 @@ export default function FinancialPlannedProducedChart({ data }: { data: Financia
               dot={{ r: 3, fill: "#cbd5e1", strokeWidth: 0 }}
             />
             <Line
+              yAxisId="brl"
               type="monotone"
               dataKey="cumulative_produced_brl"
               name="Valor produzido (acum.)"
               stroke="#34d399"
               strokeWidth={3}
               dot={{ r: 3, fill: "#34d399", strokeWidth: 0 }}
+            />
+            <Line
+              yAxisId="pct"
+              type="monotone"
+              dataKey="physical_executed_pct"
+              name="Avanço físico (%)"
+              stroke="#60a5fa"
+              strokeWidth={2.5}
+              dot={false}
+            />
+            <Line
+              yAxisId="pct"
+              type="monotone"
+              dataKey="productive_advance_pct"
+              name="Avanço produtivo (%)"
+              stroke="#f472b6"
+              strokeWidth={2.5}
+              dot={false}
             />
           </LineChart>
         </ResponsiveContainer>

@@ -47,6 +47,7 @@ from app.schemas import (
     LoginIn,
     ProjectCreate,
     ProjectOut,
+    ProjectUpdate,
     StageCreate,
     StageOut,
     StageUpdate,
@@ -230,7 +231,11 @@ def create_project(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    p = Project(name=body.name.strip(), description=(body.description or "").strip() or None)
+    p = Project(
+        name=body.name.strip(),
+        description=(body.description or "").strip() or None,
+        obra_total_value_brl=body.obra_total_value_brl,
+    )
     db.add(p)
     db.commit()
     db.refresh(p)
@@ -247,6 +252,29 @@ def get_project(project_id: int, db: Session = Depends(get_db), _: User = Depend
     p = db.get(Project, project_id)
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
+    return p
+
+
+@app.patch("/api/projects/{project_id}", response_model=ProjectOut)
+def update_project(
+    project_id: int,
+    body: ProjectUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    data = body.model_dump(exclude_unset=True)
+    if "name" in data:
+        p.name = str(data["name"]).strip()
+    if "description" in data:
+        desc = data["description"]
+        p.description = (str(desc).strip() or None) if desc is not None else None
+    if "obra_total_value_brl" in data:
+        p.obra_total_value_brl = data["obra_total_value_brl"]
+    db.commit()
+    db.refresh(p)
     return p
 
 
@@ -461,7 +489,11 @@ def get_financial_dashboard(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    p = db.get(Project, project_id)
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.stages).joinedload(Stage.entries))
+        .where(Project.id == project_id)
+    )
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
     return build_financial_panel_dashboard(db, p, date_from, date_to, team_id)
@@ -476,7 +508,11 @@ def export_financial_xlsx(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    p = db.get(Project, project_id)
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.stages).joinedload(Stage.entries))
+        .where(Project.id == project_id)
+    )
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
     data, fname = financial_excel_bytes(db, p, date_from, date_to, team_id)

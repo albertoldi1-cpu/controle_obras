@@ -35,6 +35,8 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Valor total da obra (R$) — usado em % avanço produtivo e comparativos (ex.: curva / meta diária).
+    obra_total_value_brl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     stages: Mapped[List["Stage"]] = relationship(
         "Stage", back_populates="project", cascade="all, delete-orphan", order_by="Stage.sort_order"

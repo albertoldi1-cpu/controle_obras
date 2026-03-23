@@ -91,10 +91,19 @@ export const api = {
   projects: {
     list: () => req<Project[]>("/api/projects"),
     get: (id: number) => req<Project>(`/api/projects/${id}`),
-    create: (name: string, description?: string) =>
+    create: (name: string, description?: string, obra_total_value_brl?: number | null) =>
       req<Project>("/api/projects", {
         method: "POST",
-        body: JSON.stringify({ name, description: description || null }),
+        body: JSON.stringify({
+          name,
+          description: description || null,
+          obra_total_value_brl: obra_total_value_brl ?? null,
+        }),
+      }),
+    update: (id: number, patch: Partial<Pick<Project, "name" | "description" | "obra_total_value_brl">>) =>
+      req<Project>(`/api/projects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
       }),
     delete: (id: number) => req(`/api/projects/${id}`, { method: "DELETE" }),
   },

@@ -54,15 +54,32 @@ def _stage_farol(p_opt: float, p_pes: float, p_real: float) -> str:
     return "red"
 
 
-def _stage_balance_farol(saldo_pes: float, saldo_opt: float) -> str:
-    # Verde: planejamento pessimista já zerado.
-    # Amarelo: pessimista ainda aberto, mas otimista já zerado.
-    # Vermelho: ambos cenários ainda têm saldo faltante.
-    if saldo_pes <= 1e-6:
+def _stage_planning_totals(stage_id: int, by_stage: Dict[int, Dict[date, Tuple[float, float, float]]]) -> Tuple[float, float]:
+    """Soma de todos os planejamentos diários da etapa (otimista e pessimista)."""
+    ed = by_stage.get(stage_id, {})
+    sum_o = sum(v[0] for v in ed.values())
+    sum_p = sum(v[1] for v in ed.values())
+    return float(sum_o), float(sum_p)
+
+
+def _stage_planning_farol(total_q: float, sum_o: float, sum_p: float) -> str:
+    """Farol focado em fechamento do planejamento vs quantidade cadastrada (curva S)."""
+    if total_q <= 1e-9:
         return "green"
-    if saldo_opt <= 1e-6:
+    o_ok = sum_o + 1e-6 >= total_q
+    p_ok = sum_p + 1e-6 >= total_q
+    if o_ok and p_ok:
+        return "green"
+    if o_ok or p_ok:
         return "yellow"
     return "red"
+
+
+def _planning_deviation_pct(planned_sum: float, total_q: float) -> Optional[float]:
+    """Desvio % do planejado em relação ao cadastro: (Σ planejado - cadastro) / cadastro * 100."""
+    if total_q <= 1e-9:
+        return None
+    return round((planned_sum - total_q) / total_q * 100.0, 2)
 
 
 def _weighted_series(stages: list) -> Tuple[List[date], List[float], List[float], List[float]]:
@@ -206,38 +223,46 @@ def build_dashboard(project: Project) -> dict:
     by_stage = _entries_by_stage(stages)
 
     stage_rows: List[dict] = []
-    if ref is not None:
-        for st in sorted(stages, key=lambda s: (s.sort_order, s.id)):
+    for st in sorted(stages, key=lambda s: (s.sort_order, s.id)):
+        if ref is not None:
             p_opt, p_pes, p_real, co, cp, cx = _stage_metrics_at_day(st, ref, by_stage)
             farol = _stage_farol(p_opt, p_pes, p_real)
-            pct_ex = p_real * 100
-            pct_ox = p_opt * 100
-            pct_px = p_pes * 100
-            saldo_exec = max(float(st.total_quantity) - cx, 0.0)
-            saldo_opt = max(float(st.total_quantity) - co, 0.0)
-            saldo_pes = max(float(st.total_quantity) - cp, 0.0)
-            stage_rows.append(
-                {
-                    "stage_id": st.id,
-                    "name": st.name,
-                    "unit": st.unit,
-                    "weight": st.weight,
-                    "total_quantity": st.total_quantity,
-                    "farol": farol,
-                    "pct_optimistic": round(pct_ox, 2),
-                    "pct_pessimistic": round(pct_px, 2),
-                    "pct_executed": round(pct_ex, 2),
-                    "deviation_vs_optimistic_pct": rel_deviation_pct(pct_ex, pct_ox),
-                    "deviation_vs_pessimistic_pct": rel_deviation_pct(pct_ex, pct_px),
-                    "cumulative_executed": round(cx, 3),
-                    "cumulative_optimistic": round(co, 3),
-                    "cumulative_pessimistic": round(cp, 3),
-                    "saldo_faltante_executado": round(saldo_exec, 3),
-                    "saldo_faltante_optimista": round(saldo_opt, 3),
-                    "saldo_faltante_pessimista": round(saldo_pes, 3),
-                    "farol_saldo": _stage_balance_farol(saldo_pes, saldo_opt),
-                }
-            )
+        else:
+            p_opt = p_pes = p_real = 0.0
+            co = cp = cx = 0.0
+            farol = "red"
+        pct_ex = p_real * 100
+        pct_ox = p_opt * 100
+        pct_px = p_pes * 100
+        tq = float(st.total_quantity)
+        sum_plan_o, sum_plan_p = _stage_planning_totals(st.id, by_stage)
+        pending_o = max(tq - sum_plan_o, 0.0)
+        pending_p = max(tq - sum_plan_p, 0.0)
+        stage_rows.append(
+            {
+                "stage_id": st.id,
+                "name": st.name,
+                "unit": st.unit,
+                "weight": st.weight,
+                "total_quantity": st.total_quantity,
+                "farol": farol,
+                "pct_optimistic": round(pct_ox, 2),
+                "pct_pessimistic": round(pct_px, 2),
+                "pct_executed": round(pct_ex, 2),
+                "deviation_vs_optimistic_pct": rel_deviation_pct(pct_ex, pct_ox),
+                "deviation_vs_pessimistic_pct": rel_deviation_pct(pct_ex, pct_px),
+                "cumulative_executed": round(cx, 3),
+                "cumulative_optimistic": round(co, 3),
+                "cumulative_pessimistic": round(cp, 3),
+                "planning_sum_optimistic": round(sum_plan_o, 3),
+                "planning_sum_pessimistic": round(sum_plan_p, 3),
+                "pending_planning_optimistic": round(pending_o, 3),
+                "pending_planning_pessimistic": round(pending_p, 3),
+                "deviation_planning_optimistic_pct": _planning_deviation_pct(sum_plan_o, tq),
+                "deviation_planning_pessimistic_pct": _planning_deviation_pct(sum_plan_p, tq),
+                "farol_saldo": _stage_planning_farol(tq, sum_plan_o, sum_plan_p),
+            }
+        )
 
     obra_opt = obra_pes = obra_ex = 0.0
     if ref is not None and days:

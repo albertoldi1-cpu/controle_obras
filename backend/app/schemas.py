@@ -36,6 +36,13 @@ class UserCreateByMaster(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
     description: Optional[str] = Field(None, max_length=1024)
+    obra_total_value_brl: Optional[float] = Field(None, ge=0, le=1e15)
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=256)
+    description: Optional[str] = Field(None, max_length=1024)
+    obra_total_value_brl: Optional[float] = Field(None, ge=0, le=1e15)
 
 
 class ProjectOut(BaseModel):
@@ -45,6 +52,7 @@ class ProjectOut(BaseModel):
     name: str
     description: Optional[str]
     created_at: datetime
+    obra_total_value_brl: Optional[float] = None
 
 
 class StageCreate(BaseModel):
@@ -110,9 +118,12 @@ class StageDashboardRow(BaseModel):
     cumulative_executed: float
     cumulative_optimistic: float
     cumulative_pessimistic: float
-    saldo_faltante_executado: float
-    saldo_faltante_optimista: float
-    saldo_faltante_pessimista: float
+    planning_sum_optimistic: float
+    planning_sum_pessimistic: float
+    pending_planning_optimistic: float
+    pending_planning_pessimistic: float
+    deviation_planning_optimistic_pct: Optional[float]
+    deviation_planning_pessimistic_pct: Optional[float]
     farol_saldo: Farol
 
 
@@ -215,6 +226,8 @@ class FinancialPanelSeriesPoint(BaseModel):
     daily_produced_brl: float
     cumulative_planned_brl: float
     cumulative_produced_brl: float
+    physical_executed_pct: float
+    productive_advance_pct: float
 
 
 class FinancialFarolDayRow(BaseModel):
@@ -245,6 +258,7 @@ class FinancialTeamBriefOut(BaseModel):
 class FinancialPanelDashboardOut(BaseModel):
     project_id: int
     project_name: str
+    obra_total_value_brl: Optional[float] = None
     filters: FinancialPanelFiltersOut
     summary: FinancialPanelSummary
     series: List[FinancialPanelSeriesPoint]
@@ -256,18 +270,19 @@ class FinancialPhysicalComparisonPoint(BaseModel):
     day: date
     physical_executed_pct: float
     produced_value_brl: float
-    productive_quantity: float
     optimistic_productive_forecast_brl: float
     pessimistic_productive_forecast_brl: float
     cumulative_produced_value_brl: float
-    cumulative_productive_quantity: float
+    daily_obra_reference_brl: float
 
 
 class FinancialPhysicalComparisonSummary(BaseModel):
     last_day: Optional[date]
     physical_executed_pct: float
     total_produced_brl: float
-    total_productive_quantity: float
+    obra_total_value_brl: float
+    planned_financial_days_count: int
+    daily_obra_reference_brl: float
 
 
 class FinancialPhysicalComparisonOut(BaseModel):

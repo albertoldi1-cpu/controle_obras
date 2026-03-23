@@ -193,28 +193,36 @@ export default function DashboardPage() {
 
       <section className="glass overflow-hidden rounded-2xl">
         <div className="border-b border-white/10 px-6 py-4">
-          <h2 className="font-display text-xl font-semibold text-white">Farol de saldo faltante por etapa</h2>
+          <h2 className="font-display text-xl font-semibold text-white">Planejamento vs cadastro (curva S)</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Verde: saldo pessimista zerado · Amarelo: saldo pessimista aberto, mas otimista zerado · Vermelho:
-            saldos abertos.
+            Compara a <strong className="text-slate-400">quantidade cadastrada</strong> da etapa com a{" "}
+            <strong className="text-slate-400">soma de todos os lançamentos planejados</strong> (otimista e pessimista).
+            <strong className="text-slate-400"> Falta planejar</strong> = cadastro − Σ planejado (quanto ainda falta lançar
+            no planejamento). <strong className="text-slate-400">Desvio %</strong> = (Σ planejado − cadastro) / cadastro
+            (negativo = falta planejar; positivo = planejou acima do cadastro). Farol: verde = ambos cenários fecham o
+            cadastro · amarelo = só um cenário · vermelho = ambos abaixo.
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-slate-500">
                 <th className="px-6 py-3">Farol</th>
                 <th className="px-6 py-3">Etapa</th>
-                <th className="px-6 py-3">Saldo executado</th>
-                <th className="px-6 py-3">Saldo otimista</th>
-                <th className="px-6 py-3">Saldo pessimista</th>
+                <th className="px-6 py-3">Qtd. cadastro</th>
+                <th className="px-6 py-3">Σ plan. otimista</th>
+                <th className="px-6 py-3">Σ plan. pessimista</th>
+                <th className="px-6 py-3">Falta planej. otimista</th>
+                <th className="px-6 py-3">Falta planej. pessimista</th>
+                <th className="px-6 py-3">Desvio % otimista</th>
+                <th className="px-6 py-3">Desvio % pessimista</th>
               </tr>
             </thead>
             <tbody>
               {stages.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
-                    Cadastre etapas e lançamentos diários para visualizar os saldos.
+                  <td colSpan={9} className="px-6 py-10 text-center text-slate-500">
+                    Cadastre etapas e lançamentos para visualizar o fechamento do planejamento.
                   </td>
                 </tr>
               ) : (
@@ -227,9 +235,13 @@ export default function DashboardPage() {
                       {s.name}
                       {s.unit ? <span className="ml-2 text-xs font-normal text-slate-500">({s.unit})</span> : null}
                     </td>
-                    <td className="px-6 py-3 text-slate-300">{s.saldo_faltante_executado.toFixed(2)}</td>
-                    <td className="px-6 py-3 text-slate-300">{s.saldo_faltante_optimista.toFixed(2)}</td>
-                    <td className="px-6 py-3 font-medium text-accent-glow">{s.saldo_faltante_pessimista.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-slate-300">{s.total_quantity.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-slate-300">{s.planning_sum_optimistic.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-slate-300">{s.planning_sum_pessimistic.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-amber-200/90">{s.pending_planning_optimistic.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-amber-200/90">{s.pending_planning_pessimistic.toFixed(2)}</td>
+                    <td className="px-6 py-3 font-medium text-slate-300">{fmtRelPct(s.deviation_planning_optimistic_pct)}</td>
+                    <td className="px-6 py-3 font-medium text-slate-300">{fmtRelPct(s.deviation_planning_pessimistic_pct)}</td>
                   </tr>
                 ))
               )}

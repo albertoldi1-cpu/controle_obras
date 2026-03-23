@@ -5,10 +5,10 @@ from collections import defaultdict
 from datetime import date
 from typing import List, Optional, Tuple
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import DailyEntry, FinancialDailyPlan, FinancialDailyProduction, FinancialProductionEntry, FinancialTeam, Project
+from app.models import FinancialDailyPlan, FinancialDailyProduction, FinancialTeam, Project
 from app.schemas import (
     Farol,
     FinancialFarolDayRow,
@@ -42,6 +42,30 @@ def _filter_team_id(row_team_id: int, filt: Optional[int]) -> bool:
     if filt is None:
         return True
     return int(row_team_id) == int(filt)
+
+
+def _physical_executed_pct_at_day(
+    stages: list,
+    day: date,
+    date_from: Optional[date],
+    date_to: Optional[date],
+) -> float:
+    """% avanço físico acumulado até `day` (mesma lógica do painel físico), respeitando filtros de data."""
+    acc = 0.0
+    for st in stages:
+        q = float(st.total_quantity or 0.0)
+        if q <= 0:
+            continue
+        executed = 0.0
+        for e in st.entries:
+            if date_from and e.day < date_from:
+                continue
+            if date_to and e.day > date_to:
+                continue
+            if e.day <= day:
+                executed += float(e.executed or 0.0)
+        acc += float(st.weight) * min(executed / q, 1.0)
+    return round(acc * 100.0, 3)
 
 
 def build_financial_panel_dashboard(
@@ -96,6 +120,8 @@ def build_financial_panel_dashboard(
 
     cum_p = 0.0
     cum_e = 0.0
+    stages_list = list(project.stages)
+    obra_total = float(project.obra_total_value_brl or 0.0)
     series: List[FinancialPanelSeriesPoint] = []
     farol_rows: List[FinancialFarolDayRow] = []
 
@@ -104,6 +130,10 @@ def build_financial_panel_dashboard(
         dr = by_day_produced.get(d, 0.0)
         cum_p += dp
         cum_e += dr
+        phys_pct = _physical_executed_pct_at_day(stages_list, d, date_from, date_to)
+        prod_pct = (
+            round(min((cum_e / obra_total) * 100.0, 100.0), 3) if obra_total > 1e-9 else 0.0
+        )
         series.append(
             FinancialPanelSeriesPoint(
                 day=d,
@@ -111,6 +141,8 @@ def build_financial_panel_dashboard(
                 daily_produced_brl=dr,
                 cumulative_planned_brl=cum_p,
                 cumulative_produced_brl=cum_e,
+                physical_executed_pct=phys_pct,
+                productive_advance_pct=prod_pct,
             )
         )
         farol_rows.append(
@@ -145,6 +177,9 @@ def build_financial_panel_dashboard(
     return FinancialPanelDashboardOut(
         project_id=project.id,
         project_name=project.name,
+        obra_total_value_brl=float(project.obra_total_value_brl)
+        if project.obra_total_value_brl is not None
+        else None,
         filters=filters,
         summary=summary,
         series=series,
@@ -176,8 +211,24 @@ def financial_excel_bytes(
     ws0.append(["Meta Total das Equipes (R$)", dash.summary.total_planned_brl])
     ws0.append(["Total produzido (R$)", dash.summary.total_produced_brl])
     ws0.append(["Desvio %", dash.summary.deviation_pct if dash.summary.deviation_pct is not None else ""])
+    ws0.append(
+        [
+            "Valor total da obra (R$)",
+            dash.obra_total_value_brl if dash.obra_total_value_brl is not None else "",
+        ]
+    )
     ws0.append([])
-    ws0.append(["Data", "Meta Total das Equipes (dia)", "Produzido (dia)", "Acum. Meta Total das Equipes", "Acum. produzido"])
+    ws0.append(
+        [
+            "Data",
+            "Meta Total das Equipes (dia)",
+            "Produzido (dia)",
+            "Acum. Meta Total das Equipes",
+            "Acum. produzido",
+            "Avanço físico (%)",
+            "Avanço produtivo (%)",
+        ]
+    )
     for p in dash.series:
         ws0.append(
             [
@@ -186,6 +237,8 @@ def financial_excel_bytes(
                 p.daily_produced_brl,
                 p.cumulative_planned_brl,
                 p.cumulative_produced_brl,
+                p.physical_executed_pct,
+                p.productive_advance_pct,
             ]
         )
     ws0.append([])
@@ -307,30 +360,37 @@ def build_financial_physical_comparison(
         phys_opt_by_day_pct[d] = round(acc_opt * 100, 3)
         phys_pes_by_day_pct[d] = round(acc_pes * 100, 3)
 
-    q_fin = select(FinancialProductionEntry).where(FinancialProductionEntry.project_id == project.id)
+    q_prod_rows = select(FinancialDailyProduction).where(FinancialDailyProduction.project_id == project.id)
     if date_from:
-        q_fin = q_fin.where(FinancialProductionEntry.exec_date >= date_from)
+        q_prod_rows = q_prod_rows.where(FinancialDailyProduction.day >= date_from)
     if date_to:
-        q_fin = q_fin.where(FinancialProductionEntry.exec_date <= date_to)
-    fin_rows = list(db.scalars(q_fin).all())
+        q_prod_rows = q_prod_rows.where(FinancialDailyProduction.day <= date_to)
+    prod_rows = list(db.scalars(q_prod_rows).all())
 
     produced_by_day: dict[date, float] = defaultdict(float)
-    qty_by_day: dict[date, float] = defaultdict(float)
-    for r in fin_rows:
-        produced_by_day[r.exec_date] += float(r.value_brl or 0.0)
-        qty_by_day[r.exec_date] += float(r.quantity or 0.0)
+    for r in prod_rows:
+        produced_by_day[r.day] += float(r.produced_value_brl or 0.0)
 
-    all_days = sorted(set(sorted_phys_days) | set(produced_by_day.keys()) | set(qty_by_day.keys()))
+    q_plan_days = select(func.count(func.distinct(FinancialDailyPlan.day))).where(
+        FinancialDailyPlan.project_id == project.id
+    )
+    if date_from:
+        q_plan_days = q_plan_days.where(FinancialDailyPlan.day >= date_from)
+    if date_to:
+        q_plan_days = q_plan_days.where(FinancialDailyPlan.day <= date_to)
+    n_plan_days = int(db.scalar(q_plan_days) or 0)
+
+    obra_total = float(project.obra_total_value_brl or 0.0)
+    daily_obra_ref = (obra_total / n_plan_days) if n_plan_days > 0 and obra_total > 1e-9 else 0.0
+
+    all_days = sorted(set(sorted_phys_days) | set(produced_by_day.keys()))
     points: List[FinancialPhysicalComparisonPoint] = []
     cum_prod = 0.0
-    cum_qty = 0.0
     last_phys = 0.0
     last_phys_opt = 0.0
     last_phys_pes = 0.0
     ratio_brl_per_physical_point = 0.0
     if all_days:
-        # Conversão observada: quanto de R$ produzido representa 1 ponto percentual de avanço físico executado.
-        # Usado para estimar previsão produtiva dos cenários otimista/pessimista.
         final_phys = phys_by_day_pct.get(all_days[-1], 0.0)
         if final_phys > 1e-9:
             ratio_brl_per_physical_point = sum(produced_by_day.values()) / final_phys
@@ -342,9 +402,7 @@ def build_financial_physical_comparison(
         if d in phys_pes_by_day_pct:
             last_phys_pes = phys_pes_by_day_pct[d]
         day_prod = produced_by_day.get(d, 0.0)
-        day_qty = qty_by_day.get(d, 0.0)
         cum_prod += day_prod
-        cum_qty += day_qty
         forecast_opt_cum = last_phys_opt * ratio_brl_per_physical_point
         forecast_pes_cum = last_phys_pes * ratio_brl_per_physical_point
         prev_opt = points[-1].optimistic_productive_forecast_brl if points else 0.0
@@ -354,11 +412,10 @@ def build_financial_physical_comparison(
                 day=d,
                 physical_executed_pct=last_phys,
                 produced_value_brl=day_prod,
-                productive_quantity=day_qty,
                 optimistic_productive_forecast_brl=max(forecast_opt_cum - prev_opt, 0.0),
                 pessimistic_productive_forecast_brl=max(forecast_pes_cum - prev_pes, 0.0),
                 cumulative_produced_value_brl=cum_prod,
-                cumulative_productive_quantity=cum_qty,
+                daily_obra_reference_brl=daily_obra_ref,
             )
         )
 
@@ -366,7 +423,9 @@ def build_financial_physical_comparison(
         last_day=all_days[-1] if all_days else None,
         physical_executed_pct=last_phys,
         total_produced_brl=cum_prod,
-        total_productive_quantity=cum_qty,
+        obra_total_value_brl=obra_total,
+        planned_financial_days_count=n_plan_days,
+        daily_obra_reference_brl=daily_obra_ref,
     )
     return FinancialPhysicalComparisonOut(
         project_id=project.id,
@@ -396,18 +455,19 @@ def financial_physical_comparison_excel_bytes(
     ws.append([])
     ws.append(["Avanço físico executado (%)", comp.summary.physical_executed_pct])
     ws.append(["Total produzido (R$)", comp.summary.total_produced_brl])
-    ws.append(["Quantidade produtiva total", comp.summary.total_productive_quantity])
+    ws.append(["Valor total da obra (R$)", comp.summary.obra_total_value_brl])
+    ws.append(["Dias com planejamento financeiro (distintos)", comp.summary.planned_financial_days_count])
+    ws.append(["Referência diária obra (R$)", comp.summary.daily_obra_reference_brl])
     ws.append([])
     ws.append(
         [
             "Data",
             "Executado físico (%)",
             "Produzido (R$ dia)",
-            "Quantidade produtiva (dia)",
             "Previsão produtiva otimista (R$ dia)",
             "Previsão produtiva pessimista (R$ dia)",
             "Produzido acumulado (R$)",
-            "Quantidade acumulada",
+            "Referência diária obra (R$)",
         ]
     )
     for p in comp.points:
@@ -416,11 +476,10 @@ def financial_physical_comparison_excel_bytes(
                 p.day.isoformat(),
                 p.physical_executed_pct,
                 p.produced_value_brl,
-                p.productive_quantity,
                 p.optimistic_productive_forecast_brl,
                 p.pessimistic_productive_forecast_brl,
                 p.cumulative_produced_value_brl,
-                p.cumulative_productive_quantity,
+                p.daily_obra_reference_brl,
             ]
         )
     for c in ws[1]:

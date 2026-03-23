@@ -11,6 +11,7 @@ export interface Project {
   name: string;
   description: string | null;
   created_at: string;
+  obra_total_value_brl?: number | null;
 }
 
 export interface Stage {
@@ -50,9 +51,12 @@ export interface StageDashboardRow {
   cumulative_executed: number;
   cumulative_optimistic: number;
   cumulative_pessimistic: number;
-  saldo_faltante_executado: number;
-  saldo_faltante_optimista: number;
-  saldo_faltante_pessimista: number;
+  planning_sum_optimistic: number;
+  planning_sum_pessimistic: number;
+  pending_planning_optimistic: number;
+  pending_planning_pessimistic: number;
+  deviation_planning_optimistic_pct: number | null;
+  deviation_planning_pessimistic_pct: number | null;
   farol_saldo: Farol;
 }
 
@@ -127,6 +131,8 @@ export interface FinancialPanelSeriesPoint {
   daily_produced_brl: number;
   cumulative_planned_brl: number;
   cumulative_produced_brl: number;
+  physical_executed_pct: number;
+  productive_advance_pct: number;
 }
 
 export interface FinancialFarolDayRow {
@@ -147,6 +153,7 @@ export interface FinancialPanelSummary {
 export interface FinancialPanelDashboard {
   project_id: number;
   project_name: string;
+  obra_total_value_brl?: number | null;
   filters: FinancialPanelFilters;
   summary: FinancialPanelSummary;
   series: FinancialPanelSeriesPoint[];
@@ -158,18 +165,19 @@ export interface FinancialPhysicalComparisonPoint {
   day: string;
   physical_executed_pct: number;
   produced_value_brl: number;
-  productive_quantity: number;
   optimistic_productive_forecast_brl: number;
   pessimistic_productive_forecast_brl: number;
   cumulative_produced_value_brl: number;
-  cumulative_productive_quantity: number;
+  daily_obra_reference_brl: number;
 }
 
 export interface FinancialPhysicalComparisonSummary {
   last_day: string | null;
   physical_executed_pct: number;
   total_produced_brl: number;
-  total_productive_quantity: number;
+  obra_total_value_brl: number;
+  planned_financial_days_count: number;
+  daily_obra_reference_brl: number;
 }
 
 export interface FinancialPhysicalComparison {

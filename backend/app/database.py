@@ -165,6 +165,22 @@ def backfill_financial_team_fks():
                 pass
 
 
+def migrate_projects_obra_total():
+    """Adiciona obra_total_value_brl em projetos já existentes."""
+    try:
+        insp = inspect(engine)
+    except Exception:
+        return
+    if not insp.has_table("projects"):
+        return
+    cols = {c["name"] for c in insp.get_columns("projects")}
+    if "obra_total_value_brl" in cols:
+        return
+    typ = "REAL" if engine.dialect.name == "sqlite" else "DOUBLE PRECISION"
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE projects ADD COLUMN obra_total_value_brl {typ}"))
+
+
 def init_db():
     from app import models  # noqa: F401 — registra tabelas
 
@@ -172,3 +188,4 @@ def init_db():
     migrate_schema()
     migrate_financial_teams_schema()
     backfill_financial_team_fks()
+    migrate_projects_obra_total()
