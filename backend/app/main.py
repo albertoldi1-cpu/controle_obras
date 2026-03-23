@@ -39,7 +39,7 @@ from app.schemas import (
 )
 from app.services.dashboard import build_dashboard
 from app.services.financial import build_financial_dashboard
-from app.settings import cors_origins, docs_enabled, validate_production_security
+from app.settings import cors_origins, docs_enabled
 
 app = FastAPI(
     title="Controle de Obras de Grande Porte",
@@ -95,7 +95,6 @@ def bootstrap_master(db: Session) -> None:
 
 @app.on_event("startup")
 def on_startup():
-    validate_production_security()
     init_db()
     db = SessionLocal()
     try:

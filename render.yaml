@@ -15,6 +15,5 @@ services:
         sync: false
       - key: MASTER_USERNAME
         sync: false
-      # Obrigatório para a API subir (produção): defina no painel após o primeiro deploy
       - key: MASTER_PASSWORD
         sync: false

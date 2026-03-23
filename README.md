@@ -134,13 +134,13 @@ Em plataformas como o **Render**, o disco do **container** é em geral **efêmer
 - **Não consegue logar?** O banco pode ainda ter credenciais antigas. Com a API **parada**, na raiz do projeto: `python3 scripts/reset_master.py` — apaga todos os usuários e recria só o master conforme `auth_util.py` ou as variáveis de ambiente.
 - Acesse a interface em `/login`.  
 - Só o **master** vê o menu **Usuários** e pode cadastrar novos logins em `/admin/usuarios`.  
-- Defina também **`SECRET_KEY`** (string longa aleatória) em produção para assinar os tokens JWT.
+- Recomenda-se **`SECRET_KEY`** (string longa aleatória) para assinar os tokens JWT em produção; se não houver, usa-se o padrão de desenvolvimento.
 
 Veja `backend/.env.example` para a lista de variáveis.
 
 ### Segurança (API e banco)
 
-- **Produção (Render / `RENDER=true` ou `ENVIRONMENT=production`):** a API **não sobe** sem **`SECRET_KEY`** com **≥ 32 caracteres** (diferente do valor de desenvolvimento) e sem **`MASTER_PASSWORD`** definido no ambiente — evita JWT previsível e master com senha padrão.
+- **Recomendado em produção:** defina **`SECRET_KEY`** (ou **`JWT_SECRET`**) longa e aleatória e **`MASTER_PASSWORD`** no ambiente; sem isso, o sistema usa valores padrão do código (menos seguro em ambiente público).
 - **CORS:** em produção, sem `CORS_ORIGINS`, usa **`RENDER_EXTERNAL_URL`**. Para vários domínios, defina `CORS_ORIGINS` separados por vírgula.
 - **PostgreSQL no Render:** `sslmode=require` é acrescentado automaticamente à `DATABASE_URL` quando `RENDER=true`.
 - **Cabeçalhos HTTP:** `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security` (em produção).
@@ -241,8 +241,8 @@ O repositório inclui **`Dockerfile`** (build do React + API FastAPI) e **`rende
 2. **New → Blueprint** e selecione este repositório, ou **New → Web Service** com *Docker* e raiz do repositório.  
 3. Variáveis de ambiente no serviço web:
    - **`DATABASE_URL`** — obrigatória em produção (o backend normaliza `postgres://` para `postgresql+psycopg2://`).  
-   - **`SECRET_KEY`** — **obrigatória** no Render: ≥ 32 caracteres aleatórios (Blueprint: *Generate*).  
-   - **`MASTER_PASSWORD`** — **obrigatória** no Render (a API não inicia sem ela em produção). Opcional: **`MASTER_USERNAME`**.  
+   - **`SECRET_KEY`** / **`JWT_SECRET`** — recomendadas (chave longa para JWT); se omitidas, usa-se o padrão de desenvolvimento.  
+   - **`MASTER_PASSWORD`** / **`MASTER_USERNAME`** — opcionais; padrões em `auth_util.py` se não definidos.  
    - Opcional: variáveis de **backup por e-mail** (ver secção acima).  
 4. Health check: caminho **`/api/health`**.  
 5. Após o deploy, abra a URL do serviço: a **interface** e a **API** ficam no mesmo domínio (`/` e `/api/...`); não é necessário `VITE_API_BASE`.
@@ -262,8 +262,6 @@ O repositório inclui **`Dockerfile`** (build do React + API FastAPI) e **`rende
 `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'`
 
 **Erro em `pydantic-core` / `metadata-generation-failed`:** o build nativo em Python estava usando **3.14**, onde muitas dependências ainda não têm wheel e o `pip` tenta compilar e falha. O repositório inclui **`.python-version`** na raiz com **`3.12.8`** para o Render usar Python estável. Se o painel ainda escolher 3.14, crie a variável de ambiente **`PYTHON_VERSION`** = `3.12.8` (ou `3.12.11`) no serviço e faça um novo deploy.
-
-**Erro no log: `SECRET_KEY` / `Application startup failed`:** o Render define `RENDER=true`; a API exige **`SECRET_KEY`** (ou **`JWT_SECRET`**) com **≥ 32 caracteres** e **`MASTER_PASSWORD`**. No serviço web → **Environment** → adicione manualmente se o Blueprint não tiver aplicado: `SECRET_KEY` = saída de `openssl rand -hex 32` e `MASTER_PASSWORD` = uma senha forte. Salve e faça **Manual Deploy**.
 
 Teste local da imagem:
 
