@@ -6,7 +6,20 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 Base = declarative_base()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+def _database_url_from_env() -> str:
+    raw = os.getenv("DATABASE_URL", "").strip()
+    if not raw:
+        return ""
+    # Render/Heroku usam postgres://; SQLAlchemy + psycopg2 esperam postgresql+psycopg2://
+    if raw.startswith("postgres://"):
+        raw = "postgresql+psycopg2://" + raw[len("postgres://") :]
+    elif raw.startswith("postgresql://") and not raw.startswith("postgresql+"):
+        raw = "postgresql+psycopg2://" + raw[len("postgresql://") :]
+    return raw
+
+
+DATABASE_URL = _database_url_from_env()
 
 if DATABASE_URL:
     engine = create_engine(

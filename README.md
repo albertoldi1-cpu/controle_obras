@@ -193,6 +193,43 @@ Opções comuns:
 - Defina `VITE_API_BASE` apontando para a URL pública da API (ex.: `https://api.suaempresa.com`) e rode `npm run build` de novo.  
 - Hospede a API (Railway, Fly.io, Render, etc.) com a mesma `DATABASE_URL` persistente (para SQLite, use volume em disco ou troque para PostgreSQL depois).
 
+### B.1) Render (Docker + um único URL)
+
+O repositório inclui **`Dockerfile`** (build do React + API FastAPI) e **`render.yaml`** (modelo de serviço web).
+
+1. No [Render](https://render.com), crie um **PostgreSQL** (ou use [Neon](https://neon.tech) / outro) e copie a URL de conexão.  
+2. **New → Blueprint** e selecione este repositório, ou **New → Web Service** com *Docker* e raiz do repositório.  
+3. Variáveis de ambiente no serviço web:
+   - **`DATABASE_URL`** — obrigatória em produção (o backend normaliza `postgres://` para `postgresql+psycopg2://`).  
+   - **`SECRET_KEY`** — string longa aleatória (no Blueprint pode usar *Generate*).  
+   - Opcional: **`MASTER_USERNAME`** e **`MASTER_PASSWORD`** para o primeiro usuário master (senão valem os padrões do código).  
+4. Health check: caminho **`/api/health`**.  
+5. Após o deploy, abra a URL do serviço: a **interface** e a **API** ficam no mesmo domínio (`/` e `/api/...`); não é necessário `VITE_API_BASE`.
+
+**Web Service manual (sem Blueprint):** ambiente **Docker** · **Dockerfile path** `Dockerfile` · **Docker build context** `.` (raiz do repo) · **Start Command** em branco (usa o `CMD` do Dockerfile) · defina **`PORT`** apenas se o painel exigir; o Render costuma injetar `PORT` sozinho.
+
+**Se o build falhou com “Could not open requirements.txt”:** o serviço está como **Python** na raiz do repo, onde antes não havia `requirements.txt`. Há agora um **`requirements.txt` na raiz** que aponta para `backend/` — faça **commit, push** e rode o deploy de novo. **Melhor ainda:** em **Settings → Build & Deploy**, mude **Environment** para **Docker** (e use o `Dockerfile` na raiz), assim o Render não depende do build nativo em Python e o frontend entra na imagem automaticamente.
+
+**Se mantiver runtime Python (não Docker):** defina **`NODE_VERSION`** `20` (ou `18`) nas variáveis de ambiente para o Render instalar o Node no build. **Build Command:**
+
+`pip install -r requirements.txt && cd frontend && npm ci && npm run build`
+
+**Start Command:**
+
+`cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'`
+
+Teste local da imagem:
+
+```bash
+docker build -t obra-controle .
+# Sem DATABASE_URL: usa SQLite dentro do container (só para teste).
+docker run --rm -p 8000:8000 -e SECRET_KEY="dev" obra-controle
+# Com PostgreSQL:
+docker run --rm -p 8000:8000 -e SECRET_KEY="dev" -e DATABASE_URL="postgresql+psycopg2://..." obra-controle
+```
+
+Ou, na raiz do projeto: `chmod +x scripts/docker-run-local.sh` e `./scripts/docker-run-local.sh` (interface em [http://127.0.0.1:8080](http://127.0.0.1:8080) por padrão).
+
 ### C) Rede local / VPN
 
 - Suba backend e frontend na mesma rede ou atrás de **Tailscale** / **WireGuard** para compartilhar só com o time, sem expor à internet pública.

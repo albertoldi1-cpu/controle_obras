@@ -1,0 +1,19 @@
+# Blueprint Render: New → Blueprint → conecte o repositório.
+# Crie um PostgreSQL no painel (ou use Neon/Supabase) e defina DATABASE_URL no serviço web.
+services:
+  - type: web
+    name: obra-controle
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: MASTER_USERNAME
+        sync: false
+      - key: MASTER_PASSWORD
+        sync: false

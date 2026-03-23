@@ -1,0 +1,4 @@
+# Raiz do repo: usado pelo Render (runtime Python) com `pip install -r requirements.txt`.
+# O código da API continua em backend/.
+-r backend/requirements.txt
+-r backend/requirements-postgres.txt

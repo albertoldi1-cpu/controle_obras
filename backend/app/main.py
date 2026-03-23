@@ -1,8 +1,11 @@
 from datetime import date
+from pathlib import Path
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -39,6 +42,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.is_dir():
+    _assets_dir = _FRONTEND_DIST / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="assets")
+
 
 def bootstrap_master(db: Session) -> None:
     n = db.scalar(select(func.count(User.id)))
@@ -69,6 +78,9 @@ def on_startup():
 
 @app.get("/")
 def root():
+    idx = _FRONTEND_DIST / "index.html"
+    if idx.is_file():
+        return FileResponse(idx)
     return {
         "service": "Obra Controle API",
         "docs": "/docs",
@@ -387,3 +399,15 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db), _: User = Depe
         raise HTTPException(404, "Projeto não encontrado")
     data = build_dashboard(p)
     return DashboardOut.model_validate(data)
+
+
+if _FRONTEND_DIST.is_dir():
+
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(404, detail="Not found")
+        candidate = _FRONTEND_DIST / full_path
+        if candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_FRONTEND_DIST / "index.html")
