@@ -77,3 +77,50 @@ export interface Dashboard {
   series: SeriesPoint[];
   stages: StageDashboardRow[];
 }
+
+export interface FinancialEntry {
+  id: number;
+  project_id: number;
+  exec_date: string;
+  team_type: string;
+  segment: string;
+  uen: string;
+  obra_code: string;
+  labor_code: string;
+  description: string;
+  quantity: number;
+  ups: number;
+  ups_brl: number;
+  value_brl: number;
+  ep_note: string | null;
+  created_at: string;
+}
+
+export interface FinancialSeriesPoint {
+  day: string;
+  daily_value: number;
+  cumulative_value: number;
+}
+
+export interface FinancialByTeamRow {
+  team_type: string;
+  total_brl: number;
+  pct_of_total: number;
+}
+
+export interface FinancialSummary {
+  entry_count: number;
+  total_value_brl: number;
+  total_ups: number;
+  last_exec_date: string | null;
+  avg_value_per_entry: number;
+}
+
+export interface FinancialDashboard {
+  project_id: number;
+  project_name: string;
+  summary: FinancialSummary;
+  series: FinancialSeriesPoint[];
+  by_team: FinancialByTeamRow[];
+  recent_entries: FinancialEntry[];
+}

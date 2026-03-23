@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useParams, Link } from "react-router-dom";
-import { ArrowLeft, ClipboardList, Gauge, Layers, LogOut, Shield } from "lucide-react";
+import { ArrowLeft, Banknote, ClipboardList, Gauge, Layers, LogOut, Shield } from "lucide-react";
 import { api } from "../api";
 import type { Project } from "../types";
 import clsx from "clsx";
@@ -10,6 +10,7 @@ const tabs = [
   { to: "painel", label: "Painel", icon: Gauge },
   { to: "etapas", label: "Etapas", icon: Layers },
   { to: "lancamentos", label: "Lançamentos", icon: ClipboardList },
+  { to: "financeiro", label: "Financeiro", icon: Banknote },
 ];
 
 export default function ProjectShell() {

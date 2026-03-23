@@ -1,8 +1,9 @@
+import os
 from datetime import date
 from pathlib import Path
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,15 +12,21 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.auth_core import create_access_token, hash_password, verify_password
 from app.auth_util import master_password, master_username
+from app.backup_export import send_backup_via_smtp
 from app.database import SessionLocal, get_db, init_db
 from app.deps import get_current_user, require_master
-from app.models import DailyEntry, Project, Stage, User
+from app.models import DailyEntry, FinancialProductionEntry, Project, Stage, User
+from app.rate_limit import login_rate_limited, register_login_attempt
 from app.schemas import (
+    BackupEmailOut,
     BulkExecutedBody,
     BulkPlannedBody,
     DailyEntryIn,
     DailyEntryOut,
     DashboardOut,
+    FinancialDashboardOut,
+    FinancialEntryIn,
+    FinancialEntryOut,
     LoginIn,
     ProjectCreate,
     ProjectOut,
@@ -31,16 +38,36 @@ from app.schemas import (
     UserOut,
 )
 from app.services.dashboard import build_dashboard
+from app.services.financial import build_financial_dashboard
+from app.settings import cors_origins, docs_enabled, validate_production_security
 
-app = FastAPI(title="Controle de Obras de Grande Porte", version="1.1.0")
+app = FastAPI(
+    title="Controle de Obras de Grande Porte",
+    version="1.2.0",
+    docs_url="/docs" if docs_enabled() else None,
+    redoc_url="/redoc" if docs_enabled() else None,
+    openapi_url="/openapi.json" if docs_enabled() else None,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins(),
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if os.getenv("RENDER", "").lower() == "true" or os.getenv("ENVIRONMENT", "").lower() == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 _FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 if _FRONTEND_DIST.is_dir():
@@ -68,6 +95,7 @@ def bootstrap_master(db: Session) -> None:
 
 @app.on_event("startup")
 def on_startup():
+    validate_production_security()
     init_db()
     db = SessionLocal()
     try:
@@ -98,10 +126,17 @@ def health():
 
 
 @app.post("/api/auth/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(request: Request, body: LoginIn, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    if login_rate_limited(ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas tentativas de login. Aguarde alguns minutos.",
+        )
     uname = body.username.strip()
     user = db.scalar(select(User).where(func.lower(User.username) == uname.lower()))
     if not user or not user.is_active or not verify_password(body.password, user.password_hash):
+        register_login_attempt(ip)
         raise HTTPException(
             status_code=401,
             detail="Usuário ou senha incorretos. Se acabou de mudar o master no código, rode: python3 scripts/reset_master.py",
@@ -141,6 +176,14 @@ def create_user(
     return u
 
 
+@app.post("/api/admin/backup/email", response_model=BackupEmailOut)
+def admin_backup_email(_: User = Depends(require_master), db: Session = Depends(get_db)):
+    ok, msg = send_backup_via_smtp(db)
+    if not ok:
+        raise HTTPException(status_code=503, detail=msg)
+    return BackupEmailOut(ok=True, message=msg)
+
+
 @app.delete("/api/users/{user_id}")
 def delete_user(
     user_id: int,
@@ -166,7 +209,7 @@ def create_project(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    p = Project(name=body.name.strip(), description=body.description)
+    p = Project(name=body.name.strip(), description=(body.description or "").strip() or None)
     db.add(p)
     db.commit()
     db.refresh(p)
@@ -383,6 +426,106 @@ def bulk_executed(
         count += 1
     db.commit()
     return {"upserted": count}
+
+
+# --- Avanço produtivo / financeiro ---
+
+
+@app.get("/api/projects/{project_id}/financial/dashboard", response_model=FinancialDashboardOut)
+def get_financial_dashboard(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.financial_entries))
+        .where(Project.id == project_id)
+    )
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    return build_financial_dashboard(p)
+
+
+@app.get("/api/projects/{project_id}/financial/entries", response_model=List[FinancialEntryOut])
+def list_financial_entries(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    rows = db.scalars(
+        select(FinancialProductionEntry)
+        .where(FinancialProductionEntry.project_id == project_id)
+        .order_by(FinancialProductionEntry.exec_date.desc(), FinancialProductionEntry.id.desc())
+    ).all()
+    return rows
+
+
+@app.post("/api/projects/{project_id}/financial/entries", response_model=FinancialEntryOut)
+def create_financial_entry(
+    project_id: int,
+    body: FinancialEntryIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    row = FinancialProductionEntry(
+        project_id=project_id,
+        exec_date=body.exec_date,
+        team_type=body.team_type.strip(),
+        segment=body.segment.strip(),
+        uen=body.uen.strip(),
+        obra_code=body.obra_code.strip(),
+        labor_code=body.labor_code.strip(),
+        description=body.description.strip(),
+        quantity=body.quantity,
+        ups=body.ups,
+        ups_brl=body.ups_brl,
+        value_brl=body.value_brl,
+        ep_note=(body.ep_note or "").strip() or None,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.put("/api/projects/{project_id}/financial/entries/{entry_id}", response_model=FinancialEntryOut)
+def update_financial_entry(
+    project_id: int,
+    entry_id: int,
+    body: FinancialEntryIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialProductionEntry, entry_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Lançamento não encontrado")
+    row.exec_date = body.exec_date
+    row.team_type = body.team_type.strip()
+    row.segment = body.segment.strip()
+    row.uen = body.uen.strip()
+    row.obra_code = body.obra_code.strip()
+    row.labor_code = body.labor_code.strip()
+    row.description = body.description.strip()
+    row.quantity = body.quantity
+    row.ups = body.ups
+    row.ups_brl = body.ups_brl
+    row.value_brl = body.value_brl
+    row.ep_note = (body.ep_note or "").strip() or None
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.delete("/api/projects/{project_id}/financial/entries/{entry_id}")
+def delete_financial_entry(
+    project_id: int,
+    entry_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialProductionEntry, entry_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Lançamento não encontrado")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 
 
 # --- Painel ---

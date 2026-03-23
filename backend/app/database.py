@@ -16,6 +16,9 @@ def _database_url_from_env() -> str:
         raw = "postgresql+psycopg2://" + raw[len("postgres://") :]
     elif raw.startswith("postgresql://") and not raw.startswith("postgresql+"):
         raw = "postgresql+psycopg2://" + raw[len("postgresql://") :]
+    if raw and "postgresql" in raw.lower() and "sslmode=" not in raw.lower():
+        if os.getenv("RENDER", "").strip().lower() == "true":
+            raw = raw + ("&" if "?" in raw else "?") + "sslmode=require"
     return raw
 
 

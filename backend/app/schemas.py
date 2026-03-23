@@ -35,7 +35,7 @@ class UserCreateByMaster(BaseModel):
 
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=1024)
 
 
 class ProjectOut(BaseModel):
@@ -158,3 +158,75 @@ class BulkExecutedItem(BaseModel):
 
 class BulkExecutedBody(BaseModel):
     entries: List[BulkExecutedItem]
+
+
+# --- Avanço produtivo / financeiro (planilha CALCULO OBRA DAMHA — aba AVANÇO PRODUTIVO) ---
+
+
+class FinancialEntryIn(BaseModel):
+    exec_date: date
+    team_type: str = Field("", max_length=128)
+    segment: str = Field("", max_length=64)
+    uen: str = Field("", max_length=64)
+    obra_code: str = Field("", max_length=64)
+    labor_code: str = Field("", max_length=64)
+    description: str = Field("", max_length=512)
+    quantity: float = Field(0.0, ge=-1e12, le=1e12)
+    ups: float = Field(0.0, ge=-1e12, le=1e12)
+    ups_brl: float = Field(0.0, ge=-1e12, le=1e12)
+    value_brl: float = Field(0.0, ge=-1e12, le=1e12)
+    ep_note: Optional[str] = Field(None, max_length=256)
+
+
+class FinancialEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    exec_date: date
+    team_type: str
+    segment: str
+    uen: str
+    obra_code: str
+    labor_code: str
+    description: str
+    quantity: float
+    ups: float
+    ups_brl: float
+    value_brl: float
+    ep_note: Optional[str]
+    created_at: datetime
+
+
+class FinancialSeriesPoint(BaseModel):
+    day: date
+    daily_value: float
+    cumulative_value: float
+
+
+class FinancialByTeamRow(BaseModel):
+    team_type: str
+    total_brl: float
+    pct_of_total: float
+
+
+class FinancialSummary(BaseModel):
+    entry_count: int
+    total_value_brl: float
+    total_ups: float
+    last_exec_date: Optional[date]
+    avg_value_per_entry: float
+
+
+class FinancialDashboardOut(BaseModel):
+    project_id: int
+    project_name: str
+    summary: FinancialSummary
+    series: List[FinancialSeriesPoint]
+    by_team: List[FinancialByTeamRow]
+    recent_entries: List[FinancialEntryOut]
+
+
+class BackupEmailOut(BaseModel):
+    ok: bool
+    message: str

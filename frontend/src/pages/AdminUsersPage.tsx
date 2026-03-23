@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, Mail, Trash2, UserPlus } from "lucide-react";
 import { api } from "../api";
 import type { User } from "../types";
 import { useAuth } from "../auth/AuthContext";
@@ -12,6 +12,8 @@ export default function AdminUsersPage() {
   const [password, setPassword] = useState("");
   const [mkMaster, setMkMaster] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
 
   async function load() {
     const list = await api.users.list();
@@ -42,6 +44,19 @@ export default function AdminUsersPage() {
     await load();
   }
 
+  async function sendBackup() {
+    setBackupMsg(null);
+    setBackupBusy(true);
+    try {
+      const r = await api.admin.sendBackupEmail();
+      setBackupMsg(r.message);
+    } catch (ex) {
+      setBackupMsg(ex instanceof Error ? ex.message : "Falha no backup");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
   if (!isMaster) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
@@ -61,6 +76,27 @@ export default function AdminUsersPage() {
       </Link>
       <h1 className="font-display text-2xl font-bold text-white">Usuários</h1>
       <p className="mt-1 text-sm text-slate-500">Somente o master pode cadastrar novos acessos.</p>
+
+      <div className="glass mt-6 rounded-2xl border border-white/10 p-6">
+        <h2 className="flex items-center gap-2 font-medium text-white">
+          <Mail className="h-5 w-5 text-accent" />
+          Backup por e-mail
+        </h2>
+        <p className="mt-2 text-sm text-slate-500">
+          Envia um arquivo compactado (JSON) com todos os dados do sistema para o endereço configurado no servidor (
+          <code className="text-slate-400">BACKUP_EMAIL_TO</code>). Credenciais SMTP ficam só em variáveis de ambiente —
+          nunca no código.
+        </p>
+        <button
+          type="button"
+          disabled={backupBusy}
+          onClick={() => sendBackup()}
+          className="mt-4 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/20 disabled:opacity-50"
+        >
+          {backupBusy ? "Enviando…" : "Enviar backup agora"}
+        </button>
+        {backupMsg && <p className="mt-3 text-sm text-slate-400">{backupMsg}</p>}
+      </div>
 
       <form onSubmit={add} className="glass mt-8 space-y-4 rounded-2xl p-6">
         <h2 className="flex items-center gap-2 font-medium text-white">

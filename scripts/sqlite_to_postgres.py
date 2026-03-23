@@ -36,11 +36,14 @@ pg_eng = create_engine(PG_URL, pool_pre_ping=True)
 
 Base.metadata.create_all(bind=pg_eng)
 
-order = [models.User, models.Project, models.Stage, models.DailyEntry]
+order = [models.User, models.Project, models.Stage, models.DailyEntry, models.FinancialProductionEntry]
 
 with pg_eng.begin() as conn:
     conn.execute(
-        text("TRUNCATE TABLE daily_entries, stages, projects, users RESTART IDENTITY CASCADE")
+        text(
+            "TRUNCATE TABLE financial_production_entries, daily_entries, stages, projects, users "
+            "RESTART IDENTITY CASCADE"
+        )
     )
 
 with sqlite_eng.connect() as sc, pg_eng.begin() as pc:

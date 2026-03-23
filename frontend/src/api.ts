@@ -1,4 +1,4 @@
-import type { DailyEntry, Dashboard, Project, Stage, User } from "./types";
+import type { DailyEntry, Dashboard, FinancialDashboard, FinancialEntry, Project, Stage, User } from "./types";
 
 const base = import.meta.env.VITE_API_BASE ?? "";
 
@@ -37,6 +37,9 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       }).then(async (r) => {
+        if (r.status === 429) {
+          throw new Error("Muitas tentativas de login. Aguarde alguns minutos.");
+        }
         if (!r.ok) {
           const raw = await r.text();
           let msg = raw;
@@ -108,4 +111,22 @@ export const api = {
       body: JSON.stringify({ entries }),
     }),
   dashboard: (projectId: number) => req<Dashboard>(`/api/projects/${projectId}/dashboard`),
+  financial: {
+    dashboard: (projectId: number) => req<FinancialDashboard>(`/api/projects/${projectId}/financial/dashboard`),
+    list: (projectId: number) => req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
+    create: (
+      projectId: number,
+      body: Omit<FinancialEntry, "id" | "project_id" | "created_at">
+    ) =>
+      req<FinancialEntry>(`/api/projects/${projectId}/financial/entries`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    delete: (projectId: number, entryId: number) =>
+      req(`/api/projects/${projectId}/financial/entries/${entryId}`, { method: "DELETE" }),
+  },
+  admin: {
+    sendBackupEmail: () =>
+      req<{ ok: boolean; message: string }>("/api/admin/backup/email", { method: "POST" }),
+  },
 };

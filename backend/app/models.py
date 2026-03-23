@@ -39,6 +39,12 @@ class Project(Base):
     stages: Mapped[List["Stage"]] = relationship(
         "Stage", back_populates="project", cascade="all, delete-orphan", order_by="Stage.sort_order"
     )
+    financial_entries: Mapped[List["FinancialProductionEntry"]] = relationship(
+        "FinancialProductionEntry",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="FinancialProductionEntry.exec_date, FinancialProductionEntry.id",
+    )
 
 
 class Stage(Base):
@@ -72,3 +78,27 @@ class DailyEntry(Base):
     stage: Mapped["Stage"] = relationship("Stage", back_populates="entries")
 
     __table_args__ = (UniqueConstraint("stage_id", "day", name="uq_stage_day"),)
+
+
+class FinancialProductionEntry(Base):
+    """Lançamentos no modelo da planilha «avanço produtivo» (mão de obra / valor)."""
+
+    __tablename__ = "financial_production_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    exec_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    team_type: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    segment: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    uen: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    obra_code: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    labor_code: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    description: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    quantity: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    ups: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    ups_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    value_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    ep_note: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship("Project", back_populates="financial_entries")

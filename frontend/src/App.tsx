@@ -7,6 +7,7 @@ import ProjectShell from "./pages/ProjectShell";
 import DashboardPage from "./pages/DashboardPage";
 import StagesPage from "./pages/StagesPage";
 import EntriesPage from "./pages/EntriesPage";
+import FinancialPage from "./pages/FinancialPage";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="painel" element={<DashboardPage />} />
           <Route path="etapas" element={<StagesPage />} />
           <Route path="lancamentos" element={<EntriesPage />} />
+          <Route path="financeiro" element={<FinancialPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

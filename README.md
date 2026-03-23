@@ -125,7 +125,7 @@ Em plataformas como o **Render**, o disco do **container** é em geral **efêmer
    python3 scripts/sqlite_to_postgres.py
    ```
 
-   Isso copia usuários, projetos, etapas e lançamentos. Em PostgreSQL novo, ajuste as sequências se necessário, por exemplo:  
+   Isso copia usuários, projetos, etapas, lançamentos diários e **lançamentos financeiros** (avanço produtivo). Em PostgreSQL novo, ajuste as sequências se necessário, por exemplo:  
    `SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id),1) FROM users));` (repita para outras tabelas se usar IDs fixos).
 
 ### Login e usuário master
@@ -137,6 +137,34 @@ Em plataformas como o **Render**, o disco do **container** é em geral **efêmer
 - Defina também **`SECRET_KEY`** (string longa aleatória) em produção para assinar os tokens JWT.
 
 Veja `backend/.env.example` para a lista de variáveis.
+
+### Segurança (API e banco)
+
+- **Produção (Render / `RENDER=true` ou `ENVIRONMENT=production`):** a API **não sobe** sem **`SECRET_KEY`** com **≥ 32 caracteres** (diferente do valor de desenvolvimento) e sem **`MASTER_PASSWORD`** definido no ambiente — evita JWT previsível e master com senha padrão.
+- **CORS:** em produção, sem `CORS_ORIGINS`, usa **`RENDER_EXTERNAL_URL`**. Para vários domínios, defina `CORS_ORIGINS` separados por vírgula.
+- **PostgreSQL no Render:** `sslmode=require` é acrescentado automaticamente à `DATABASE_URL` quando `RENDER=true`.
+- **Cabeçalhos HTTP:** `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security` (em produção).
+- **Login:** limite de tentativas por IP (memória; instância única).
+- **Documentação OpenAPI (`/docs`):** desligada em produção; para forçar no Render, use **`FORCE_API_DOCS=1`** (não recomendado em ambiente público sem autenticação extra).
+
+### Aba Financeiro (avanço produtivo)
+
+Dentro de cada projeto, a guia **Financeiro** segue as colunas da planilha **AVANÇO PRODUTIVO** (ex.: *CALCULO OBRA DAMHA.xlsx*): data da execução, tipo de equipe, segmento, UEN, obra, código de mão de obra, descrição, quantidade, UPS, R$ UPS e valor — com **curva acumulada** e **totais por equipe**.
+
+### Backup por e-mail (somente variáveis de ambiente)
+
+**Nunca** coloque senha de e-mail no código nem no Git. O master pode usar **Usuários → Enviar backup agora** se o servidor tiver SMTP configurado:
+
+| Variável | Exemplo |
+|----------|---------|
+| `BACKUP_SMTP_HOST` | `smtp.gmail.com` |
+| `BACKUP_SMTP_PORT` | `587` |
+| `BACKUP_SMTP_USER` | seu e-mail Gmail |
+| `BACKUP_SMTP_PASSWORD` | **senha de app** do Google (não a senha da conta) |
+| `BACKUP_EMAIL_FROM` | opcional; padrão = `BACKUP_SMTP_USER` |
+| `BACKUP_EMAIL_TO` | destino do backup |
+
+No Google: Conta → Segurança → **Senhas de app** (com verificação em duas etapas). O anexo é **JSON compactado (gzip)** com usuários (hashes), projetos, etapas, lançamentos diários e financeiros.
 
 ### 2. Frontend
 
@@ -213,8 +241,9 @@ O repositório inclui **`Dockerfile`** (build do React + API FastAPI) e **`rende
 2. **New → Blueprint** e selecione este repositório, ou **New → Web Service** com *Docker* e raiz do repositório.  
 3. Variáveis de ambiente no serviço web:
    - **`DATABASE_URL`** — obrigatória em produção (o backend normaliza `postgres://` para `postgresql+psycopg2://`).  
-   - **`SECRET_KEY`** — string longa aleatória (no Blueprint pode usar *Generate*).  
-   - Opcional: **`MASTER_USERNAME`** e **`MASTER_PASSWORD`** para o primeiro usuário master (senão valem os padrões do código).  
+   - **`SECRET_KEY`** — **obrigatória** no Render: ≥ 32 caracteres aleatórios (Blueprint: *Generate*).  
+   - **`MASTER_PASSWORD`** — **obrigatória** no Render (a API não inicia sem ela em produção). Opcional: **`MASTER_USERNAME`**.  
+   - Opcional: variáveis de **backup por e-mail** (ver secção acima).  
 4. Health check: caminho **`/api/health`**.  
 5. Após o deploy, abra a URL do serviço: a **interface** e a **API** ficam no mesmo domínio (`/` e `/api/...`); não é necessário `VITE_API_BASE`.
 
