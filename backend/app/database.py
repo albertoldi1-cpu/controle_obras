@@ -71,8 +71,104 @@ def migrate_schema():
         conn.execute(text("ALTER TABLE daily_entries ADD COLUMN execution_note TEXT"))
 
 
+def migrate_financial_teams_schema():
+    """Adiciona financial_teams e coluna team_id em bases antigas (antes era team_type)."""
+    try:
+        insp = inspect(engine)
+    except Exception:
+        return
+    if not insp.has_table("financial_daily_plans"):
+        return
+    cols = {c["name"] for c in insp.get_columns("financial_daily_plans")}
+    if "team_id" in cols:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE financial_daily_plans ADD COLUMN team_id INTEGER"))
+        conn.execute(text("ALTER TABLE financial_daily_production ADD COLUMN team_id INTEGER"))
+
+
+def backfill_financial_team_fks():
+    """Cria equipes a partir de team_type legado, preenche team_id e remove colunas antigas."""
+    from app.models import FinancialTeam
+
+    try:
+        insp = inspect(engine)
+    except Exception:
+        return
+    if not insp.has_table("financial_daily_plans"):
+        return
+    cols = {c["name"] for c in insp.get_columns("financial_daily_plans")}
+    if "team_type" not in cols:
+        return
+
+    db = SessionLocal()
+    try:
+        cache: dict[tuple[int, str], int] = {}
+        plans = db.execute(
+            text("SELECT id, project_id, COALESCE(team_type, '') AS tt FROM financial_daily_plans WHERE team_id IS NULL")
+        ).mappings().all()
+        for pr in plans:
+            pid, tt = int(pr["project_id"]), (pr["tt"] or "").strip()
+            key = (pid, tt)
+            if key not in cache:
+                t = FinancialTeam(
+                    project_id=pid,
+                    name=tt or "Equipe",
+                    team_type=tt,
+                    uen="",
+                    encarregado="",
+                )
+                db.add(t)
+                db.flush()
+                cache[key] = t.id
+            db.execute(
+                text("UPDATE financial_daily_plans SET team_id = :tid WHERE id = :id"),
+                {"tid": cache[key], "id": pr["id"]},
+            )
+        prods = db.execute(
+            text("SELECT id, project_id, COALESCE(team_type, '') AS tt FROM financial_daily_production WHERE team_id IS NULL")
+        ).mappings().all()
+        for pr in prods:
+            pid, tt = int(pr["project_id"]), (pr["tt"] or "").strip()
+            key = (pid, tt)
+            if key not in cache:
+                t = FinancialTeam(
+                    project_id=pid,
+                    name=tt or "Equipe",
+                    team_type=tt,
+                    uen="",
+                    encarregado="",
+                )
+                db.add(t)
+                db.flush()
+                cache[key] = t.id
+            db.execute(
+                text("UPDATE financial_daily_production SET team_id = :tid WHERE id = :id"),
+                {"tid": cache[key], "id": pr["id"]},
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+    with engine.begin() as conn:
+        for stmt in (
+            "ALTER TABLE financial_daily_plans DROP COLUMN team_type",
+            "ALTER TABLE financial_daily_plans DROP COLUMN teams_count",
+            "ALTER TABLE financial_daily_production DROP COLUMN team_type",
+        ):
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+
+
 def init_db():
     from app import models  # noqa: F401 — registra tabelas
 
     Base.metadata.create_all(bind=engine)
     migrate_schema()
+    migrate_financial_teams_schema()
+    backfill_financial_team_fks()

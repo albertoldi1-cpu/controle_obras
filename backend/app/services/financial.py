@@ -5,10 +5,10 @@ from collections import defaultdict
 from datetime import date
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import FinancialDailyPlan, FinancialDailyProduction, Project
+from app.models import FinancialDailyPlan, FinancialDailyProduction, FinancialTeam, Project
 from app.schemas import (
     Farol,
     FinancialFarolDayRow,
@@ -16,14 +16,11 @@ from app.schemas import (
     FinancialPanelFiltersOut,
     FinancialPanelSeriesPoint,
     FinancialPanelSummary,
+    FinancialTeamBriefOut,
 )
 
 # Banda “pessimista” para o farol (mesma ideia do avanço físico)
 FIN_PEAK = 0.85
-
-
-def _norm_team(s: str) -> str:
-    return (s or "").strip()
 
 
 def _farol(planned: float, produced: float) -> Farol:
@@ -38,28 +35,10 @@ def _farol(planned: float, produced: float) -> Farol:
     return "red"
 
 
-def _collect_team_types(plans: List[FinancialDailyPlan], prods: List[FinancialDailyProduction]) -> List[str]:
-    seen = set()
-    out: List[str] = []
-    for row in plans:
-        t = _norm_team(row.team_type) or "—"
-        if t not in seen:
-            seen.add(t)
-            out.append(t)
-    for row in prods:
-        t = _norm_team(row.team_type) or "—"
-        if t not in seen:
-            seen.add(t)
-            out.append(t)
-    return sorted(out, key=lambda x: (x == "—", x.lower()))
-
-
-def _filter_team_match(row_team: str, filt: Optional[str]) -> bool:
-    if filt is None or filt == "":
+def _filter_team_id(row_team_id: int, filt: Optional[int]) -> bool:
+    if filt is None:
         return True
-    a = _norm_team(row_team) or "—"
-    b = _norm_team(filt) or "—"
-    return a.lower() == b.lower()
+    return int(row_team_id) == int(filt)
 
 
 def build_financial_panel_dashboard(
@@ -67,7 +46,7 @@ def build_financial_panel_dashboard(
     project: Project,
     date_from: Optional[date],
     date_to: Optional[date],
-    team_filter: Optional[str],
+    team_filter: Optional[int],
 ) -> FinancialPanelDashboardOut:
     pid = project.id
     q_plans = select(FinancialDailyPlan).where(FinancialDailyPlan.project_id == pid)
@@ -82,23 +61,24 @@ def build_financial_panel_dashboard(
     plans = list(db.scalars(q_plans).all())
     prods = list(db.scalars(q_prod).all())
 
-    all_team_types = _collect_team_types(
-        list(db.scalars(select(FinancialDailyPlan).where(FinancialDailyPlan.project_id == pid)).all()),
-        list(db.scalars(select(FinancialDailyProduction).where(FinancialDailyProduction.project_id == pid)).all()),
+    team_rows = list(
+        db.scalars(select(FinancialTeam).where(FinancialTeam.project_id == pid).order_by(FinancialTeam.name)).all()
     )
+    teams_brief = [FinancialTeamBriefOut.model_validate(t) for t in team_rows]
 
-    plans_f = [p for p in plans if _filter_team_match(p.team_type, team_filter)]
-    prods_f = [p for p in prods if _filter_team_match(p.team_type, team_filter)]
+    plans_f = [p for p in plans if _filter_team_id(p.team_id, team_filter)]
+    prods_f = [p for p in prods if _filter_team_id(p.team_id, team_filter)]
 
     by_day_planned: dict[date, float] = defaultdict(float)
     by_day_produced: dict[date, float] = defaultdict(float)
-    by_day_teams: dict[date, int] = defaultdict(int)
+    by_day_team_ids: dict[date, set[int]] = defaultdict(set)
 
     for p in plans_f:
         by_day_planned[p.day] += float(p.daily_target_brl)
-        by_day_teams[p.day] += int(p.teams_count or 0)
+        by_day_team_ids[p.day].add(p.team_id)
     for p in prods_f:
         by_day_produced[p.day] += float(p.produced_value_brl)
+        by_day_team_ids[p.day].add(p.team_id)
 
     all_days = sorted(set(by_day_planned.keys()) | set(by_day_produced.keys()))
     cum_p = 0.0
@@ -125,7 +105,7 @@ def build_financial_panel_dashboard(
                 day=d,
                 planned_brl=dp,
                 produced_brl=dr,
-                teams_count=by_day_teams.get(d, 0),
+                teams_count=len(by_day_team_ids.get(d, set())),
                 farol=_farol(dp, dr),
             )
         )
@@ -146,7 +126,7 @@ def build_financial_panel_dashboard(
     filters = FinancialPanelFiltersOut(
         date_from=date_from,
         date_to=date_to,
-        team_type=team_filter if team_filter else None,
+        team_id=team_filter,
     )
 
     return FinancialPanelDashboardOut(
@@ -156,7 +136,7 @@ def build_financial_panel_dashboard(
         summary=summary,
         series=series,
         farol_days=farol_rows,
-        team_types=all_team_types,
+        teams=teams_brief,
     )
 
 
@@ -165,7 +145,7 @@ def financial_excel_bytes(
     project: Project,
     date_from: Optional[date],
     date_to: Optional[date],
-    team_filter: Optional[str],
+    team_filter: Optional[int],
 ) -> Tuple[bytes, str]:
     from openpyxl import Workbook
     from openpyxl.styles import Font
@@ -178,7 +158,7 @@ def financial_excel_bytes(
     ws0.append(["Projeto", dash.project_name])
     ws0.append(["Filtro data de", str(dash.filters.date_from or "")])
     ws0.append(["Filtro data até", str(dash.filters.date_to or "")])
-    ws0.append(["Filtro equipe", dash.filters.team_type or "Todas"])
+    ws0.append(["Filtro equipe (id)", dash.filters.team_id or "Todas"])
     ws0.append([])
     ws0.append(["Total planejado (R$)", dash.summary.total_planned_brl])
     ws0.append(["Total produzido (R$)", dash.summary.total_produced_brl])
@@ -197,51 +177,49 @@ def financial_excel_bytes(
         )
     ws0.append([])
     ws0.append(["Farol por dia"])
-    ws0.append(["Data", "Planejado", "Produzido", "Qtd equipes", "Farol"])
+    ws0.append(["Data", "Planejado", "Produzido", "Qtd equipes ativas", "Farol"])
     for f in dash.farol_days:
         ws0.append([f.day.isoformat(), f.planned_brl, f.produced_brl, f.teams_count, f.farol])
 
     # Planejamento
     ws1 = wb.create_sheet("Planejamento")
-    ws1.append(["Data", "Tipo de equipe", "Qtd equipes no dia", "Meta diária (R$)"])
-    q = select(FinancialDailyPlan).where(FinancialDailyPlan.project_id == project.id).order_by(FinancialDailyPlan.day)
+    ws1.append(["Data", "Equipe", "Tipo", "Meta diária (R$)"])
+    q = (
+        select(FinancialDailyPlan)
+        .where(FinancialDailyPlan.project_id == project.id)
+        .order_by(FinancialDailyPlan.day, FinancialDailyPlan.team_id)
+    )
     if date_from:
         q = q.where(FinancialDailyPlan.day >= date_from)
     if date_to:
         q = q.where(FinancialDailyPlan.day <= date_to)
     for row in db.scalars(q).all():
-        if not _filter_team_match(row.team_type, team_filter):
+        if not _filter_team_id(row.team_id, team_filter):
             continue
-        ws1.append(
-            [
-                row.day.isoformat(),
-                _norm_team(row.team_type) or "—",
-                row.teams_count,
-                row.daily_target_brl,
-            ]
-        )
+        team = db.get(FinancialTeam, row.team_id)
+        nm = team.name if team else "—"
+        tt = team.team_type if team else "—"
+        ws1.append([row.day.isoformat(), nm, tt, row.daily_target_brl])
 
     # Lançamentos produtividade
     ws2 = wb.create_sheet("Lançamentos")
-    ws2.append(["Data", "Tipo de equipe", "Valor produzido (R$)", "Observações"])
-    q2 = select(FinancialDailyProduction).where(FinancialDailyProduction.project_id == project.id).order_by(
-        FinancialDailyProduction.day
+    ws2.append(["Data", "Equipe", "Tipo", "Valor produzido (R$)", "Observações"])
+    q2 = (
+        select(FinancialDailyProduction)
+        .where(FinancialDailyProduction.project_id == project.id)
+        .order_by(FinancialDailyProduction.day)
     )
     if date_from:
         q2 = q2.where(FinancialDailyProduction.day >= date_from)
     if date_to:
         q2 = q2.where(FinancialDailyProduction.day <= date_to)
     for row in db.scalars(q2).all():
-        if not _filter_team_match(row.team_type, team_filter):
+        if not _filter_team_id(row.team_id, team_filter):
             continue
-        ws2.append(
-            [
-                row.day.isoformat(),
-                _norm_team(row.team_type) or "—",
-                row.produced_value_brl,
-                row.observation or "",
-            ]
-        )
+        team = db.get(FinancialTeam, row.team_id)
+        nm = team.name if team else "—"
+        tt = team.team_type if team else "—"
+        ws2.append([row.day.isoformat(), nm, tt, row.produced_value_brl, row.observation or ""])
 
     for ws in wb.worksheets:
         for c in ws[1]:

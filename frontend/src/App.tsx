@@ -11,6 +11,7 @@ import FinancialSection from "./pages/FinancialSection";
 import FinancialPanelPage from "./pages/FinancialPanelPage";
 import FinancialPlanningPage from "./pages/FinancialPlanningPage";
 import FinancialProductivityPage from "./pages/FinancialProductivityPage";
+import FinancialTeamsPage from "./pages/FinancialTeamsPage";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="lancamentos" element={<EntriesPage />} />
           <Route path="financeiro" element={<FinancialSection />}>
             <Route index element={<FinancialPanelPage />} />
+            <Route path="equipes" element={<FinancialTeamsPage />} />
             <Route path="planejamento" element={<FinancialPlanningPage />} />
             <Route path="produtividade" element={<FinancialProductivityPage />} />
           </Route>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { Download, Filter } from "lucide-react";
 import { api } from "../api";
 import type { FinancialPanelDashboard } from "../types";
@@ -12,35 +12,53 @@ function brl(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 export default function FinancialPanelPage() {
   const { projectId } = useOutletContext<Ctx>();
   const [data, setData] = useState<FinancialPanelDashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [team, setTeam] = useState("");
+  const [teamId, setTeamId] = useState<number | "">("");
   const [exporting, setExporting] = useState(false);
+  const [busyPlan, setBusyPlan] = useState(false);
+  const [busyProd, setBusyProd] = useState(false);
+  const [planDay, setPlanDay] = useState(today);
+  const [planTeamId, setPlanTeamId] = useState<number | "">("");
+  const [planValue, setPlanValue] = useState(0);
+  const [prodDay, setProdDay] = useState(today);
+  const [prodTeamId, setProdTeamId] = useState<number | "">("");
+  const [prodValue, setProdValue] = useState(0);
+  const [prodObs, setProdObs] = useState("");
 
   const q = useCallback(
     () => ({
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
-      team_type: team || undefined,
+      team_id: teamId === "" ? undefined : teamId,
     }),
-    [dateFrom, dateTo, team]
+    [dateFrom, dateTo, teamId]
   );
+
+  const reload = useCallback(() => {
+    setErr(null);
+    return api.financial.panel(projectId, q()).then(setData);
+  }, [projectId, q]);
 
   useEffect(() => {
     let on = true;
-    setErr(null);
-    api.financial
-      .panel(projectId, q())
-      .then((d) => on && setData(d))
-      .catch((e) => on && setErr(e instanceof Error ? e.message : "Erro"));
+    reload().catch((e) => on && setErr(e instanceof Error ? e.message : "Erro"));
     return () => {
       on = false;
     };
-  }, [projectId, q]);
+  }, [reload]);
+
+  useEffect(() => {
+    if (!data?.teams.length) return;
+    if (planTeamId === "") setPlanTeamId(data.teams[0].id);
+    if (prodTeamId === "") setProdTeamId(data.teams[0].id);
+  }, [data?.teams, planTeamId, prodTeamId]);
 
   async function doExport() {
     setExporting(true);
@@ -60,6 +78,54 @@ export default function FinancialPanelPage() {
     }
   }
 
+  async function submitPlanned(e: React.FormEvent) {
+    e.preventDefault();
+    if (planTeamId === "") {
+      setErr("Selecione a equipe.");
+      return;
+    }
+    setBusyPlan(true);
+    setErr(null);
+    try {
+      await api.financial.createPlan(projectId, {
+        day: planDay,
+        team_id: planTeamId,
+        daily_target_brl: planValue,
+      });
+      setPlanValue(0);
+      await reload();
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Erro ao salvar planejado");
+    } finally {
+      setBusyPlan(false);
+    }
+  }
+
+  async function submitProduced(e: React.FormEvent) {
+    e.preventDefault();
+    if (prodTeamId === "") {
+      setErr("Selecione a equipe que realizou a produção.");
+      return;
+    }
+    setBusyProd(true);
+    setErr(null);
+    try {
+      await api.financial.createProduction(projectId, {
+        day: prodDay,
+        team_id: prodTeamId,
+        produced_value_brl: prodValue,
+        observation: prodObs.trim() || null,
+      });
+      setProdValue(0);
+      setProdObs("");
+      await reload();
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Erro ao salvar realizado");
+    } finally {
+      setBusyProd(false);
+    }
+  }
+
   if (err && !data) {
     return <p className="text-signal-bad">{err}</p>;
   }
@@ -68,18 +134,151 @@ export default function FinancialPanelPage() {
   }
 
   const dev = data.summary.deviation_pct;
+  const teams = data.teams;
 
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] via-transparent to-slate-900/40 p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Financeiro</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Avanço produtivo: meta diária (planejado) versus valor produzido, curva acumulada e farol por dia — no
-          mesmo espírito do painel de avanço físico.
+          Avanço produtivo: lançamentos separados de <strong className="text-slate-300">planejado</strong> e{" "}
+          <strong className="text-slate-300">realizado</strong> por dia e por equipe cadastrada; curva acumulada e farol
+          diário.
         </p>
       </div>
 
       {err && <p className="text-sm text-signal-bad">{err}</p>}
+
+      {teams.length === 0 ? (
+        <div className="glass rounded-2xl border border-amber-500/20 p-6 text-slate-300">
+          <p className="font-medium text-white">Nenhuma equipe cadastrada</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Cadastre ao menos uma equipe (nome, tipo, UEN, encarregado) antes de lançar planejado ou realizado.
+          </p>
+          <Link
+            to={`/projeto/${projectId}/financeiro/equipes`}
+            className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+          >
+            Ir para Equipes
+          </Link>
+        </div>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <form onSubmit={submitPlanned} className="glass rounded-2xl border border-slate-500/20 p-5">
+            <h2 className="font-display text-lg font-semibold text-slate-200">Planejado do dia</h2>
+            <p className="mt-1 text-xs text-slate-500">Meta financeira (R$) planejada para a equipe na data.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Data</label>
+                <input
+                  type="date"
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={planDay}
+                  onChange={(e) => setPlanDay(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Equipe</label>
+                <select
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={planTeamId === "" ? "" : String(planTeamId)}
+                  onChange={(e) => setPlanTeamId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.team_type ? ` · ${t.team_type}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs text-slate-500">Valor planejado (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={planValue}
+                  onChange={(e) => setPlanValue(Number(e.target.value))}
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={busyPlan}
+              className="mt-4 rounded-xl bg-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-500 disabled:opacity-50"
+            >
+              {busyPlan ? "Salvando…" : "Salvar planejado"}
+            </button>
+          </form>
+
+          <form onSubmit={submitProduced} className="glass rounded-2xl border border-emerald-500/25 p-5">
+            <h2 className="font-display text-lg font-semibold text-emerald-200">Realizado do dia</h2>
+            <p className="mt-1 text-xs text-slate-500">Valor produzido (R$) pela equipe na data.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Data</label>
+                <input
+                  type="date"
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={prodDay}
+                  onChange={(e) => setProdDay(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Equipe que produziu</label>
+                <select
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={prodTeamId === "" ? "" : String(prodTeamId)}
+                  onChange={(e) => setProdTeamId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.team_type ? ` · ${t.team_type}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs text-slate-500">Valor produzido (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  required
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={prodValue}
+                  onChange={(e) => setProdValue(Number(e.target.value))}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs text-slate-500">Observações</label>
+                <textarea
+                  rows={2}
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white placeholder:text-slate-600"
+                  value={prodObs}
+                  onChange={(e) => setProdObs(e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={busyProd}
+              className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {busyProd ? "Salvando…" : "Salvar realizado"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="glass flex flex-wrap items-end gap-4 rounded-2xl p-5">
         <Filter className="h-5 w-5 text-emerald-400" />
@@ -104,14 +303,14 @@ export default function FinancialPanelPage() {
         <div>
           <label className="mb-1 block text-xs text-slate-500">Equipe</label>
           <select
-            className="min-w-[160px] rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
-            value={team}
-            onChange={(e) => setTeam(e.target.value)}
+            className="min-w-[200px] rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+            value={teamId === "" ? "" : String(teamId)}
+            onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : "")}
           >
             <option value="">Todas</option>
-            {data.team_types.map((t) => (
-              <option key={t || "__sem_tipo__"} value={t}>
-                {t.trim() ? t : "—"}
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
               </option>
             ))}
           </select>
@@ -157,9 +356,9 @@ export default function FinancialPanelPage() {
       </div>
 
       <section className="glass rounded-2xl p-6">
-        <h2 className="font-display text-xl font-semibold text-white">Curva planejado × produzido</h2>
+        <h2 className="font-display text-xl font-semibold text-white">Avanço produtivo</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Barras: valores do dia · Linhas: acumulado planejado (cinza) e acumulado produzido (verde).
+          Linhas acumuladas: valor planejado × valor produzido (comparativo de desvio no período filtrado).
         </p>
         <div className="mt-6">
           <FinancialPlannedProducedChart data={data.series} />
@@ -179,16 +378,16 @@ export default function FinancialPanelPage() {
               <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-slate-500">
                 <th className="px-6 py-3">Farol</th>
                 <th className="px-6 py-3">Data</th>
-                <th className="px-6 py-3">Equipes (dia)</th>
-                <th className="px-6 py-3">Planejado</th>
-                <th className="px-6 py-3">Produzido</th>
+                <th className="px-6 py-3">Equipes ativas</th>
+                <th className="px-6 py-3">Planejado (dia)</th>
+                <th className="px-6 py-3">Produzido (dia)</th>
               </tr>
             </thead>
             <tbody>
               {data.farol_days.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
-                    Sem dados no período. Use Planejamento e Lanç. produtividade.
+                    Sem dados no período. Use os lançamentos acima ou as abas Planejamento / Produtividade.
                   </td>
                 </tr>
               ) : (

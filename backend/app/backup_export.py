@@ -17,6 +17,7 @@ from app.models import (
     FinancialDailyPlan,
     FinancialDailyProduction,
     FinancialProductionEntry,
+    FinancialTeam,
     Project,
     Stage,
     User,
@@ -29,6 +30,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
     stages = db.scalars(select(Stage).order_by(Stage.id)).all()
     entries = db.scalars(select(DailyEntry).order_by(DailyEntry.id)).all()
     fin = db.scalars(select(FinancialProductionEntry).order_by(FinancialProductionEntry.id)).all()
+    fteams = db.scalars(select(FinancialTeam).order_by(FinancialTeam.id)).all()
     fplans = db.scalars(select(FinancialDailyPlan).order_by(FinancialDailyPlan.id)).all()
     fprod = db.scalars(select(FinancialDailyProduction).order_by(FinancialDailyProduction.id)).all()
 
@@ -99,13 +101,24 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
             }
             for x in fin
         ],
+        "financial_teams": [
+            {
+                "id": x.id,
+                "project_id": x.project_id,
+                "name": x.name,
+                "team_type": x.team_type,
+                "uen": x.uen,
+                "encarregado": x.encarregado,
+                "created_at": x.created_at.isoformat() if x.created_at else None,
+            }
+            for x in fteams
+        ],
         "financial_daily_plans": [
             {
                 "id": x.id,
                 "project_id": x.project_id,
                 "day": x.day.isoformat(),
-                "team_type": x.team_type,
-                "teams_count": x.teams_count,
+                "team_id": x.team_id,
                 "daily_target_brl": x.daily_target_brl,
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
@@ -116,7 +129,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "id": x.id,
                 "project_id": x.project_id,
                 "day": x.day.isoformat(),
-                "team_type": x.team_type,
+                "team_id": x.team_id,
                 "produced_value_brl": x.produced_value_brl,
                 "observation": x.observation,
                 "created_at": x.created_at.isoformat() if x.created_at else None,

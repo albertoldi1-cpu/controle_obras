@@ -201,7 +201,7 @@ class FinancialEntryOut(BaseModel):
 class FinancialPanelFiltersOut(BaseModel):
     date_from: Optional[date] = None
     date_to: Optional[date] = None
-    team_type: Optional[str] = None
+    team_id: Optional[int] = None
 
 
 class FinancialPanelSeriesPoint(BaseModel):
@@ -227,6 +227,16 @@ class FinancialPanelSummary(BaseModel):
     last_data_day: Optional[date]
 
 
+class FinancialTeamBriefOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    team_type: str
+    uen: str
+    encarregado: str
+
+
 class FinancialPanelDashboardOut(BaseModel):
     project_id: int
     project_name: str
@@ -234,13 +244,31 @@ class FinancialPanelDashboardOut(BaseModel):
     summary: FinancialPanelSummary
     series: List[FinancialPanelSeriesPoint]
     farol_days: List[FinancialFarolDayRow]
-    team_types: List[str]
+    teams: List[FinancialTeamBriefOut]
+
+
+class FinancialTeamIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=256)
+    team_type: str = Field("", max_length=128)
+    uen: str = Field("", max_length=128)
+    encarregado: str = Field("", max_length=256)
+
+
+class FinancialTeamOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    name: str
+    team_type: str
+    uen: str
+    encarregado: str
+    created_at: datetime
 
 
 class FinancialDailyPlanIn(BaseModel):
     day: date
-    team_type: str = Field("", max_length=128)
-    teams_count: int = Field(0, ge=0, le=10000)
+    team_id: int = Field(..., ge=1)
     daily_target_brl: float = Field(0.0, ge=-1e12, le=1e12)
 
 
@@ -250,15 +278,15 @@ class FinancialDailyPlanOut(BaseModel):
     id: int
     project_id: int
     day: date
-    team_type: str
-    teams_count: int
+    team_id: int
     daily_target_brl: float
     created_at: datetime
+    team: FinancialTeamBriefOut
 
 
 class FinancialDailyProductionIn(BaseModel):
     day: date
-    team_type: str = Field("", max_length=128)
+    team_id: int = Field(..., ge=1)
     produced_value_brl: float = Field(0.0, ge=-1e12, le=1e12)
     observation: Optional[str] = Field(None, max_length=4000)
 
@@ -269,10 +297,11 @@ class FinancialDailyProductionOut(BaseModel):
     id: int
     project_id: int
     day: date
-    team_type: str
+    team_id: int
     produced_value_brl: float
     observation: Optional[str]
     created_at: datetime
+    team: FinancialTeamBriefOut
 
 
 class BackupEmailOut(BaseModel):

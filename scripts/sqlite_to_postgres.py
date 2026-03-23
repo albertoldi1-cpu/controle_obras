@@ -42,6 +42,7 @@ order = [
     models.Stage,
     models.DailyEntry,
     models.FinancialProductionEntry,
+    models.FinancialTeam,
     models.FinancialDailyPlan,
     models.FinancialDailyProduction,
 ]
@@ -49,7 +50,7 @@ order = [
 with pg_eng.begin() as conn:
     conn.execute(
         text(
-            "TRUNCATE TABLE financial_daily_production, financial_daily_plans, "
+            "TRUNCATE TABLE financial_daily_production, financial_daily_plans, financial_teams, "
             "financial_production_entries, daily_entries, stages, projects, users "
             "RESTART IDENTITY CASCADE"
         )

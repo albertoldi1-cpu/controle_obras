@@ -5,6 +5,7 @@ import type {
   FinancialDailyProduction,
   FinancialEntry,
   FinancialPanelDashboard,
+  FinancialTeam,
   Project,
   Stage,
   User,
@@ -39,11 +40,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>;
 }
 
-function financialQueryString(q?: { date_from?: string; date_to?: string; team_type?: string }) {
+function financialQueryString(q?: { date_from?: string; date_to?: string; team_id?: number }) {
   const sp = new URLSearchParams();
   if (q?.date_from) sp.set("date_from", q.date_from);
   if (q?.date_to) sp.set("date_to", q.date_to);
-  if (q?.team_type) sp.set("team_type", q.team_type);
+  if (q?.team_id != null && !Number.isNaN(q.team_id)) sp.set("team_id", String(q.team_id));
   const s = sp.toString();
   return s ? `?${s}` : "";
 }
@@ -131,13 +132,13 @@ export const api = {
     }),
   dashboard: (projectId: number) => req<Dashboard>(`/api/projects/${projectId}/dashboard`),
   financial: {
-    panel: (projectId: number, q?: { date_from?: string; date_to?: string; team_type?: string }) =>
+    panel: (projectId: number, q?: { date_from?: string; date_to?: string; team_id?: number }) =>
       req<FinancialPanelDashboard>(
         `/api/projects/${projectId}/financial/dashboard${financialQueryString(q)}`
       ),
     exportXlsx: async (
       projectId: number,
-      q?: { date_from?: string; date_to?: string; team_type?: string }
+      q?: { date_from?: string; date_to?: string; team_id?: number }
     ): Promise<Blob> => {
       const path = `/api/projects/${projectId}/financial/export.xlsx${financialQueryString(q)}`;
       const r = await fetch(`${base}${path}`, { headers: authHeaders() });
@@ -151,11 +152,32 @@ export const api = {
       }
       return r.blob();
     },
+    listTeams: (projectId: number) =>
+      req<FinancialTeam[]>(`/api/projects/${projectId}/financial/teams`),
+    createTeam: (
+      projectId: number,
+      body: Pick<FinancialTeam, "name" | "team_type" | "uen" | "encarregado">
+    ) =>
+      req<FinancialTeam>(`/api/projects/${projectId}/financial/teams`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateTeam: (
+      projectId: number,
+      teamId: number,
+      body: Pick<FinancialTeam, "name" | "team_type" | "uen" | "encarregado">
+    ) =>
+      req<FinancialTeam>(`/api/projects/${projectId}/financial/teams/${teamId}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    deleteTeam: (projectId: number, teamId: number) =>
+      req(`/api/projects/${projectId}/financial/teams/${teamId}`, { method: "DELETE" }),
     listPlans: (projectId: number) =>
       req<FinancialDailyPlan[]>(`/api/projects/${projectId}/financial/plans`),
     createPlan: (
       projectId: number,
-      body: Pick<FinancialDailyPlan, "day" | "team_type" | "teams_count" | "daily_target_brl">
+      body: Pick<FinancialDailyPlan, "day" | "team_id" | "daily_target_brl">
     ) =>
       req<FinancialDailyPlan>(`/api/projects/${projectId}/financial/plans`, {
         method: "POST",
@@ -164,7 +186,7 @@ export const api = {
     updatePlan: (
       projectId: number,
       planId: number,
-      body: Pick<FinancialDailyPlan, "day" | "team_type" | "teams_count" | "daily_target_brl">
+      body: Pick<FinancialDailyPlan, "day" | "team_id" | "daily_target_brl">
     ) =>
       req<FinancialDailyPlan>(`/api/projects/${projectId}/financial/plans/${planId}`, {
         method: "PUT",
@@ -176,7 +198,7 @@ export const api = {
       req<FinancialDailyProduction[]>(`/api/projects/${projectId}/financial/production`),
     createProduction: (
       projectId: number,
-      body: Pick<FinancialDailyProduction, "day" | "team_type" | "produced_value_brl" | "observation">
+      body: Pick<FinancialDailyProduction, "day" | "team_id" | "produced_value_brl" | "observation">
     ) =>
       req<FinancialDailyProduction>(`/api/projects/${projectId}/financial/production`, {
         method: "POST",
@@ -185,7 +207,7 @@ export const api = {
     updateProduction: (
       projectId: number,
       prodId: number,
-      body: Pick<FinancialDailyProduction, "day" | "team_type" | "produced_value_brl" | "observation">
+      body: Pick<FinancialDailyProduction, "day" | "team_id" | "produced_value_brl" | "observation">
     ) =>
       req<FinancialDailyProduction>(`/api/projects/${projectId}/financial/production/${prodId}`, {
         method: "PUT",

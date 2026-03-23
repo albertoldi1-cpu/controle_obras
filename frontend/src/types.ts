@@ -100,7 +100,20 @@ export interface FinancialEntry {
 export interface FinancialPanelFilters {
   date_from: string | null;
   date_to: string | null;
-  team_type: string | null;
+  team_id: number | null;
+}
+
+export interface FinancialTeamBrief {
+  id: number;
+  name: string;
+  team_type: string;
+  uen: string;
+  encarregado: string;
+}
+
+export interface FinancialTeam extends FinancialTeamBrief {
+  project_id: number;
+  created_at: string;
 }
 
 export interface FinancialPanelSeriesPoint {
@@ -133,25 +146,26 @@ export interface FinancialPanelDashboard {
   summary: FinancialPanelSummary;
   series: FinancialPanelSeriesPoint[];
   farol_days: FinancialFarolDayRow[];
-  team_types: string[];
+  teams: FinancialTeamBrief[];
 }
 
 export interface FinancialDailyPlan {
   id: number;
   project_id: number;
   day: string;
-  team_type: string;
-  teams_count: number;
+  team_id: number;
   daily_target_brl: number;
   created_at: string;
+  team: FinancialTeamBrief;
 }
 
 export interface FinancialDailyProduction {
   id: number;
   project_id: number;
   day: string;
-  team_type: string;
+  team_id: number;
   produced_value_brl: number;
   observation: string | null;
   created_at: string;
+  team: FinancialTeamBrief;
 }

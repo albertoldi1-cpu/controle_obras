@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.auth_core import create_access_token, hash_password, verify_password
 from app.auth_util import master_password, master_username
@@ -21,6 +21,7 @@ from app.models import (
     FinancialDailyPlan,
     FinancialDailyProduction,
     FinancialProductionEntry,
+    FinancialTeam,
     Project,
     Stage,
     User,
@@ -40,6 +41,8 @@ from app.schemas import (
     FinancialEntryIn,
     FinancialEntryOut,
     FinancialPanelDashboardOut,
+    FinancialTeamIn,
+    FinancialTeamOut,
     LoginIn,
     ProjectCreate,
     ProjectOut,
@@ -448,14 +451,14 @@ def get_financial_dashboard(
     project_id: int,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    team_type: Optional[str] = None,
+    team_id: Optional[int] = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
     p = db.get(Project, project_id)
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
-    return build_financial_panel_dashboard(db, p, date_from, date_to, team_type)
+    return build_financial_panel_dashboard(db, p, date_from, date_to, team_id)
 
 
 @app.get("/api/projects/{project_id}/financial/export.xlsx")
@@ -463,19 +466,90 @@ def export_financial_xlsx(
     project_id: int,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    team_type: Optional[str] = None,
+    team_id: Optional[int] = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
     p = db.get(Project, project_id)
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
-    data, fname = financial_excel_bytes(db, p, date_from, date_to, team_type)
+    data, fname = financial_excel_bytes(db, p, date_from, date_to, team_id)
     return StreamingResponse(
         BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+def _financial_team_in_project(db: Session, project_id: int, team_id: int) -> FinancialTeam:
+    t = db.get(FinancialTeam, team_id)
+    if not t or t.project_id != project_id:
+        raise HTTPException(404, "Equipe não encontrada")
+    return t
+
+
+@app.get("/api/projects/{project_id}/financial/teams", response_model=List[FinancialTeamOut])
+def list_financial_teams(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    return db.scalars(
+        select(FinancialTeam)
+        .where(FinancialTeam.project_id == project_id)
+        .order_by(FinancialTeam.name)
+    ).all()
+
+
+@app.post("/api/projects/{project_id}/financial/teams", response_model=FinancialTeamOut)
+def create_financial_team(
+    project_id: int,
+    body: FinancialTeamIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    row = FinancialTeam(
+        project_id=project_id,
+        name=body.name.strip(),
+        team_type=(body.team_type or "").strip(),
+        uen=(body.uen or "").strip(),
+        encarregado=(body.encarregado or "").strip(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.put("/api/projects/{project_id}/financial/teams/{team_id}", response_model=FinancialTeamOut)
+def update_financial_team(
+    project_id: int,
+    team_id: int,
+    body: FinancialTeamIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = _financial_team_in_project(db, project_id, team_id)
+    row.name = body.name.strip()
+    row.team_type = (body.team_type or "").strip()
+    row.uen = (body.uen or "").strip()
+    row.encarregado = (body.encarregado or "").strip()
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.delete("/api/projects/{project_id}/financial/teams/{team_id}")
+def delete_financial_team(
+    project_id: int,
+    team_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = _financial_team_in_project(db, project_id, team_id)
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/api/projects/{project_id}/financial/plans", response_model=List[FinancialDailyPlanOut])
@@ -484,8 +558,10 @@ def list_financial_plans(project_id: int, db: Session = Depends(get_db), _: User
         raise HTTPException(404, "Projeto não encontrado")
     return db.scalars(
         select(FinancialDailyPlan)
+        .options(selectinload(FinancialDailyPlan.team))
         .where(FinancialDailyPlan.project_id == project_id)
-        .order_by(FinancialDailyPlan.day.desc(), FinancialDailyPlan.team_type)
+        .join(FinancialTeam, FinancialDailyPlan.team_id == FinancialTeam.id)
+        .order_by(FinancialDailyPlan.day.desc(), FinancialTeam.name)
     ).all()
 
 
@@ -498,27 +574,30 @@ def create_financial_plan(
 ):
     if not db.get(Project, project_id):
         raise HTTPException(404, "Projeto não encontrado")
-    tt = body.team_type.strip()
+    _financial_team_in_project(db, project_id, body.team_id)
     dup = db.scalar(
         select(FinancialDailyPlan).where(
             FinancialDailyPlan.project_id == project_id,
             FinancialDailyPlan.day == body.day,
-            FinancialDailyPlan.team_type == tt,
+            FinancialDailyPlan.team_id == body.team_id,
         )
     )
     if dup:
-        raise HTTPException(400, "Já existe planejamento para esta data e tipo de equipe")
+        raise HTTPException(400, "Já existe planejamento para esta data e equipe")
     row = FinancialDailyPlan(
         project_id=project_id,
         day=body.day,
-        team_type=tt,
-        teams_count=body.teams_count,
+        team_id=body.team_id,
         daily_target_brl=body.daily_target_brl,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return db.scalars(
+        select(FinancialDailyPlan)
+        .options(selectinload(FinancialDailyPlan.team))
+        .where(FinancialDailyPlan.id == row.id)
+    ).first()
 
 
 @app.put("/api/projects/{project_id}/financial/plans/{plan_id}", response_model=FinancialDailyPlanOut)
@@ -532,24 +611,27 @@ def update_financial_plan(
     row = db.get(FinancialDailyPlan, plan_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404, "Planejamento não encontrado")
-    tt = body.team_type.strip()
+    _financial_team_in_project(db, project_id, body.team_id)
     clash = db.scalar(
         select(FinancialDailyPlan).where(
             FinancialDailyPlan.project_id == project_id,
             FinancialDailyPlan.day == body.day,
-            FinancialDailyPlan.team_type == tt,
+            FinancialDailyPlan.team_id == body.team_id,
             FinancialDailyPlan.id != plan_id,
         )
     )
     if clash:
-        raise HTTPException(400, "Já existe planejamento para esta data e tipo de equipe")
+        raise HTTPException(400, "Já existe planejamento para esta data e equipe")
     row.day = body.day
-    row.team_type = tt
-    row.teams_count = body.teams_count
+    row.team_id = body.team_id
     row.daily_target_brl = body.daily_target_brl
     db.commit()
     db.refresh(row)
-    return row
+    return db.scalars(
+        select(FinancialDailyPlan)
+        .options(selectinload(FinancialDailyPlan.team))
+        .where(FinancialDailyPlan.id == row.id)
+    ).first()
 
 
 @app.delete("/api/projects/{project_id}/financial/plans/{plan_id}")
@@ -575,8 +657,10 @@ def list_financial_production(
         raise HTTPException(404, "Projeto não encontrado")
     return db.scalars(
         select(FinancialDailyProduction)
+        .options(selectinload(FinancialDailyProduction.team))
         .where(FinancialDailyProduction.project_id == project_id)
-        .order_by(FinancialDailyProduction.day.desc(), FinancialDailyProduction.team_type)
+        .join(FinancialTeam, FinancialDailyProduction.team_id == FinancialTeam.id)
+        .order_by(FinancialDailyProduction.day.desc(), FinancialTeam.name)
     ).all()
 
 
@@ -589,27 +673,31 @@ def create_financial_production(
 ):
     if not db.get(Project, project_id):
         raise HTTPException(404, "Projeto não encontrado")
-    tt = body.team_type.strip()
+    _financial_team_in_project(db, project_id, body.team_id)
     dup = db.scalar(
         select(FinancialDailyProduction).where(
             FinancialDailyProduction.project_id == project_id,
             FinancialDailyProduction.day == body.day,
-            FinancialDailyProduction.team_type == tt,
+            FinancialDailyProduction.team_id == body.team_id,
         )
     )
     if dup:
-        raise HTTPException(400, "Já existe lançamento de produção para esta data e tipo de equipe")
+        raise HTTPException(400, "Já existe lançamento de produção para esta data e equipe")
     row = FinancialDailyProduction(
         project_id=project_id,
         day=body.day,
-        team_type=tt,
+        team_id=body.team_id,
         produced_value_brl=body.produced_value_brl,
         observation=(body.observation or "").strip() or None,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return db.scalars(
+        select(FinancialDailyProduction)
+        .options(selectinload(FinancialDailyProduction.team))
+        .where(FinancialDailyProduction.id == row.id)
+    ).first()
 
 
 @app.put("/api/projects/{project_id}/financial/production/{prod_id}", response_model=FinancialDailyProductionOut)
@@ -623,24 +711,28 @@ def update_financial_production(
     row = db.get(FinancialDailyProduction, prod_id)
     if not row or row.project_id != project_id:
         raise HTTPException(404, "Lançamento não encontrado")
-    tt = body.team_type.strip()
+    _financial_team_in_project(db, project_id, body.team_id)
     clash = db.scalar(
         select(FinancialDailyProduction).where(
             FinancialDailyProduction.project_id == project_id,
             FinancialDailyProduction.day == body.day,
-            FinancialDailyProduction.team_type == tt,
+            FinancialDailyProduction.team_id == body.team_id,
             FinancialDailyProduction.id != prod_id,
         )
     )
     if clash:
-        raise HTTPException(400, "Já existe lançamento de produção para esta data e tipo de equipe")
+        raise HTTPException(400, "Já existe lançamento de produção para esta data e equipe")
     row.day = body.day
-    row.team_type = tt
+    row.team_id = body.team_id
     row.produced_value_brl = body.produced_value_brl
     row.observation = (body.observation or "").strip() or None
     db.commit()
     db.refresh(row)
-    return row
+    return db.scalars(
+        select(FinancialDailyProduction)
+        .options(selectinload(FinancialDailyProduction.team))
+        .where(FinancialDailyProduction.id == row.id)
+    ).first()
 
 
 @app.delete("/api/projects/{project_id}/financial/production/{prod_id}")
