@@ -4,6 +4,7 @@ import type {
   FinancialDailyPlan,
   FinancialDailyProduction,
   FinancialEntry,
+  FinancialPhysicalComparison,
   FinancialPanelDashboard,
   FinancialTeam,
   Project,
@@ -136,6 +137,26 @@ export const api = {
       req<FinancialPanelDashboard>(
         `/api/projects/${projectId}/financial/dashboard${financialQueryString(q)}`
       ),
+    physicalComparison: (projectId: number, q?: { date_from?: string; date_to?: string }) =>
+      req<FinancialPhysicalComparison>(
+        `/api/projects/${projectId}/financial/physical-comparison${financialQueryString(q)}`
+      ),
+    exportPhysicalComparisonXlsx: async (
+      projectId: number,
+      q?: { date_from?: string; date_to?: string }
+    ): Promise<Blob> => {
+      const path = `/api/projects/${projectId}/financial/physical-comparison/export.xlsx${financialQueryString(q)}`;
+      const r = await fetch(`${base}${path}`, { headers: authHeaders() });
+      if (r.status === 401) {
+        localStorage.removeItem("obra_token");
+        throw new Error("Sessão expirada. Faça login novamente.");
+      }
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t || r.statusText);
+      }
+      return r.blob();
+    },
     exportXlsx: async (
       projectId: number,
       q?: { date_from?: string; date_to?: string; team_id?: number }

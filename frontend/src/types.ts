@@ -49,6 +49,11 @@ export interface StageDashboardRow {
   deviation_vs_pessimistic_pct: number | null;
   cumulative_executed: number;
   cumulative_optimistic: number;
+  cumulative_pessimistic: number;
+  saldo_faltante_executado: number;
+  saldo_faltante_optimista: number;
+  saldo_faltante_pessimista: number;
+  farol_saldo: Farol;
 }
 
 export interface ObraSummary {
@@ -147,6 +152,31 @@ export interface FinancialPanelDashboard {
   series: FinancialPanelSeriesPoint[];
   farol_days: FinancialFarolDayRow[];
   teams: FinancialTeamBrief[];
+}
+
+export interface FinancialPhysicalComparisonPoint {
+  day: string;
+  physical_executed_pct: number;
+  produced_value_brl: number;
+  productive_quantity: number;
+  optimistic_productive_forecast_brl: number;
+  pessimistic_productive_forecast_brl: number;
+  cumulative_produced_value_brl: number;
+  cumulative_productive_quantity: number;
+}
+
+export interface FinancialPhysicalComparisonSummary {
+  last_day: string | null;
+  physical_executed_pct: number;
+  total_produced_brl: number;
+  total_productive_quantity: number;
+}
+
+export interface FinancialPhysicalComparison {
+  project_id: number;
+  project_name: string;
+  points: FinancialPhysicalComparisonPoint[];
+  summary: FinancialPhysicalComparisonSummary;
 }
 
 export interface FinancialDailyPlan {

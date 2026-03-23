@@ -40,6 +40,7 @@ from app.schemas import (
     FinancialDailyProductionOut,
     FinancialEntryIn,
     FinancialEntryOut,
+    FinancialPhysicalComparisonOut,
     FinancialPanelDashboardOut,
     FinancialTeamIn,
     FinancialTeamOut,
@@ -54,7 +55,12 @@ from app.schemas import (
     UserOut,
 )
 from app.services.dashboard import build_dashboard
-from app.services.financial import build_financial_panel_dashboard, financial_excel_bytes
+from app.services.financial import (
+    build_financial_panel_dashboard,
+    build_financial_physical_comparison,
+    financial_physical_comparison_excel_bytes,
+    financial_excel_bytes,
+)
 from app.settings import cors_origins, docs_enabled
 
 app = FastAPI(
@@ -474,6 +480,47 @@ def export_financial_xlsx(
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
     data, fname = financial_excel_bytes(db, p, date_from, date_to, team_id)
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@app.get("/api/projects/{project_id}/financial/physical-comparison", response_model=FinancialPhysicalComparisonOut)
+def get_financial_physical_comparison(
+    project_id: int,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.stages).joinedload(Stage.entries))
+        .where(Project.id == project_id)
+    )
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    return build_financial_physical_comparison(db, p, date_from, date_to)
+
+
+@app.get("/api/projects/{project_id}/financial/physical-comparison/export.xlsx")
+def export_financial_physical_comparison_xlsx(
+    project_id: int,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.stages).joinedload(Stage.entries))
+        .where(Project.id == project_id)
+    )
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    data, fname = financial_physical_comparison_excel_bytes(db, p, date_from, date_to)
     return StreamingResponse(
         BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

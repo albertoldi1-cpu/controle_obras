@@ -109,6 +109,11 @@ class StageDashboardRow(BaseModel):
     deviation_vs_pessimistic_pct: Optional[float]
     cumulative_executed: float
     cumulative_optimistic: float
+    cumulative_pessimistic: float
+    saldo_faltante_executado: float
+    saldo_faltante_optimista: float
+    saldo_faltante_pessimista: float
+    farol_saldo: Farol
 
 
 class ObraSummary(BaseModel):
@@ -245,6 +250,31 @@ class FinancialPanelDashboardOut(BaseModel):
     series: List[FinancialPanelSeriesPoint]
     farol_days: List[FinancialFarolDayRow]
     teams: List[FinancialTeamBriefOut]
+
+
+class FinancialPhysicalComparisonPoint(BaseModel):
+    day: date
+    physical_executed_pct: float
+    produced_value_brl: float
+    productive_quantity: float
+    optimistic_productive_forecast_brl: float
+    pessimistic_productive_forecast_brl: float
+    cumulative_produced_value_brl: float
+    cumulative_productive_quantity: float
+
+
+class FinancialPhysicalComparisonSummary(BaseModel):
+    last_day: Optional[date]
+    physical_executed_pct: float
+    total_produced_brl: float
+    total_productive_quantity: float
+
+
+class FinancialPhysicalComparisonOut(BaseModel):
+    project_id: int
+    project_name: str
+    points: List[FinancialPhysicalComparisonPoint]
+    summary: FinancialPhysicalComparisonSummary
 
 
 class FinancialTeamIn(BaseModel):

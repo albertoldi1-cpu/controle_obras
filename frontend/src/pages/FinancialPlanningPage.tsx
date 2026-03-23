@@ -107,7 +107,7 @@ export default function FinancialPlanningPage() {
       <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] to-transparent p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Planejamento (por equipe)</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Valor planejado (meta diária em R$) por data e por equipe cadastrada — separado dos lançamentos de produção
+          Meta diária em R$ por data e por equipe cadastrada — separado dos lançamentos de produção
           realizada.
         </p>
       </div>
@@ -158,7 +158,7 @@ export default function FinancialPlanningPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">Valor planejado (R$)</label>
+              <label className="mb-1 block text-xs text-slate-500">Meta da equipe (R$)</label>
               <input
                 type="number"
                 min={0}
@@ -204,7 +204,7 @@ export default function FinancialPlanningPage() {
                 <th className="px-6 py-3">Dia</th>
                 <th className="px-6 py-3">Equipe</th>
                 <th className="px-6 py-3">Tipo</th>
-                <th className="px-6 py-3">Planejado</th>
+                <th className="px-6 py-3">Meta da equipe</th>
                 <th className="w-28 px-6 py-3" />
               </tr>
             </thead>

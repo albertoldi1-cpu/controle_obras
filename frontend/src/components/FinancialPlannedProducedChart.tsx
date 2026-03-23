@@ -45,17 +45,17 @@ export default function FinancialPlannedProducedChart({ data }: { data: Financia
   if (gapPct !== null) {
     const cls = gapPct >= 0 ? "text-signal-ok" : "text-signal-warn";
     if (Math.abs(gap) < 0.01) {
-      deviationLine = <span className={cls}>0% (alinhado ao planejado acumulado)</span>;
+      deviationLine = <span className={cls}>0% (alinhado à meta total acumulada)</span>;
     } else if (gap > 0) {
       deviationLine = (
         <span className={cls}>
-          {gapPct.toFixed(1)}% (faltam {brl(gap)} para o planejado acumulado)
+          {gapPct.toFixed(1)}% (faltam {brl(gap)} para a meta total acumulada)
         </span>
       );
     } else {
       deviationLine = (
         <span className={cls}>
-          +{gapPct.toFixed(1)}% ({brl(-gap)} acima do planejado acumulado)
+          +{gapPct.toFixed(1)}% ({brl(-gap)} acima da meta total acumulada)
         </span>
       );
     }
@@ -99,7 +99,7 @@ export default function FinancialPlannedProducedChart({ data }: { data: Financia
             <Line
               type="monotone"
               dataKey="cumulative_planned_brl"
-              name="Valor planejado (acum.)"
+              name="Meta Total das Equipes (acum.)"
               stroke="#cbd5e1"
               strokeWidth={2.5}
               dot={{ r: 3, fill: "#cbd5e1", strokeWidth: 0 }}

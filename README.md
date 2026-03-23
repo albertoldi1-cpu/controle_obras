@@ -166,6 +166,63 @@ Dentro de cada projeto, a guia **Financeiro** segue as colunas da planilha **AVA
 
 No Google: Conta → Segurança → **Senhas de app** (com verificação em duas etapas). O anexo é **JSON compactado (gzip)** com usuários (hashes), projetos, etapas, lançamentos diários e financeiros.
 
+### Backup local completo (recomendado para atualização sem perda de dados)
+
+Além do backup por e-mail, o projeto agora inclui scripts de **backup e restauração total** (inclui usuários, obras/projetos, etapas, planejamento e execução, financeiro):
+
+```bash
+# na raiz do projeto
+python3 scripts/backup_data.py
+```
+
+O arquivo é salvo em `backups/obra-backup-AAAAMMDD-HHMMSSZ.json.gz`.
+
+Para restaurar no banco configurado atualmente (`DATABASE_URL` ou `backend/data.db`):
+
+```bash
+python3 scripts/restore_data.py backups/obra-backup-AAAAMMDD-HHMMSSZ.json.gz
+```
+
+> A restauração substitui os dados atuais do banco pelo conteúdo do backup.
+
+### Procedimento seguro antes, durante e depois de atualizações
+
+1. **Antes de atualizar código/deploy**  
+   Rode `python3 scripts/backup_data.py` e guarde o arquivo gerado (disco + nuvem/Drive).
+2. **Durante a atualização**  
+   Mantenha a mesma `DATABASE_URL` (PostgreSQL persistente) entre deploys; não troque para SQLite efêmero em produção.
+3. **Depois da atualização**  
+   Gere novo backup (`python3 scripts/backup_data.py`) e compare tamanho/data dos arquivos.
+4. **Se houver qualquer problema**  
+   Execute `python3 scripts/restore_data.py <arquivo_backup>` para retorno imediato.
+5. **Rotina recomendada**  
+   Fazer backup diário e sempre antes de alterações estruturais (deploy, migração, manutenção de banco).
+
+### Backup diário automático (macOS)
+
+Para agendar backup automático diário com `launchd` (nativo do macOS):
+
+```bash
+cd /Users/andreluizfrancisco/obra-controle-web
+chmod +x scripts/install_daily_backup_macos.sh scripts/run_daily_backup.sh
+./scripts/install_daily_backup_macos.sh
+```
+
+Configuração padrão:
+
+- Executa **todo dia às 01:00**
+- Gera backup em `backups/`
+- Mantém retenção de **30 dias**
+- Logs em `backups/daily-backup.log` e `backups/daily-backup-error.log`
+
+Para remover o agendamento:
+
+```bash
+cd /Users/andreluizfrancisco/obra-controle-web
+chmod +x scripts/uninstall_daily_backup_macos.sh
+./scripts/uninstall_daily_backup_macos.sh
+```
+
 ### 2. Frontend
 
 ```bash

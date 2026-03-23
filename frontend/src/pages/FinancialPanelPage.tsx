@@ -141,7 +141,7 @@ export default function FinancialPanelPage() {
       <div className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] via-transparent to-slate-900/40 p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Financeiro</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Avanço produtivo: lançamentos separados de <strong className="text-slate-300">planejado</strong> e{" "}
+          Avanço produtivo: lançamentos separados de <strong className="text-slate-300">meta</strong> e{" "}
           <strong className="text-slate-300">realizado</strong> por dia e por equipe cadastrada; curva acumulada e farol
           diário.
         </p>
@@ -165,8 +165,8 @@ export default function FinancialPanelPage() {
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={submitPlanned} className="glass rounded-2xl border border-slate-500/20 p-5">
-            <h2 className="font-display text-lg font-semibold text-slate-200">Planejado do dia</h2>
-            <p className="mt-1 text-xs text-slate-500">Meta financeira (R$) planejada para a equipe na data.</p>
+          <h2 className="font-display text-lg font-semibold text-slate-200">Meta da equipe (dia)</h2>
+          <p className="mt-1 text-xs text-slate-500">Meta financeira (R$) da equipe na data.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs text-slate-500">Data</label>
@@ -195,7 +195,7 @@ export default function FinancialPanelPage() {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-slate-500">Valor planejado (R$)</label>
+                <label className="mb-1 block text-xs text-slate-500">Meta da equipe (R$)</label>
                 <input
                   type="number"
                   min={0}
@@ -212,7 +212,7 @@ export default function FinancialPanelPage() {
               disabled={busyPlan}
               className="mt-4 rounded-xl bg-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-500 disabled:opacity-50"
             >
-              {busyPlan ? "Salvando…" : "Salvar planejado"}
+              {busyPlan ? "Salvando…" : "Salvar meta"}
             </button>
           </form>
 
@@ -328,7 +328,7 @@ export default function FinancialPanelPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="glass rounded-2xl p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Total planejado</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Meta Total das Equipes</p>
           <p className="mt-2 font-display text-2xl font-bold text-slate-200">{brl(data.summary.total_planned_brl)}</p>
         </div>
         <div className="glass rounded-2xl p-5">
@@ -358,7 +358,7 @@ export default function FinancialPanelPage() {
       <section className="glass rounded-2xl p-6">
         <h2 className="font-display text-xl font-semibold text-white">Avanço produtivo</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Linhas acumuladas: valor planejado × valor produzido (comparativo de desvio no período filtrado).
+          Linhas acumuladas: meta total das equipes × valor produzido (comparativo de desvio no período filtrado).
         </p>
         <div className="mt-6">
           <FinancialPlannedProducedChart data={data.series} />
@@ -369,7 +369,7 @@ export default function FinancialPanelPage() {
         <div className="border-b border-white/10 px-6 py-4">
           <h2 className="font-display text-xl font-semibold text-white">Farol por dia</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Verde: produzido ≥ planejado · Amarelo: ≥ 85% do planejado · Vermelho: abaixo de 85%
+            Verde: produzido ≥ meta total · Amarelo: ≥ 85% da meta total · Vermelho: abaixo de 85%
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -379,7 +379,7 @@ export default function FinancialPanelPage() {
                 <th className="px-6 py-3">Farol</th>
                 <th className="px-6 py-3">Data</th>
                 <th className="px-6 py-3">Equipes ativas</th>
-                <th className="px-6 py-3">Planejado (dia)</th>
+                <th className="px-6 py-3">Meta Total das Equipes (dia)</th>
                 <th className="px-6 py-3">Produzido (dia)</th>
               </tr>
             </thead>

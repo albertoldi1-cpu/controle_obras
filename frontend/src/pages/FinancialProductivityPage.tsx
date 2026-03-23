@@ -21,6 +21,7 @@ export default function FinancialProductivityPage() {
   const { projectId } = useOutletContext<Ctx>();
   const [teams, setTeams] = useState<FinancialTeam[]>([]);
   const [rows, setRows] = useState<FinancialDailyProduction[]>([]);
+  const [planIndex, setPlanIndex] = useState<Record<string, number>>({});
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -29,10 +30,16 @@ export default function FinancialProductivityPage() {
 
   const load = useCallback(() => {
     setErr(null);
-    return Promise.all([api.financial.listTeams(projectId), api.financial.listProduction(projectId)]).then(
-      ([t, r]) => {
+    return Promise.all([
+      api.financial.listTeams(projectId),
+      api.financial.listProduction(projectId),
+      api.financial.listPlans(projectId),
+    ]).then(([t, r, plans]) => {
         setTeams(t);
         setRows(r);
+        const idx: Record<string, number> = {};
+        for (const p of plans) idx[`${p.day}|${p.team_id}`] = p.daily_target_brl;
+        setPlanIndex(idx);
       }
     );
   }, [projectId]);
@@ -218,6 +225,7 @@ export default function FinancialProductivityPage() {
                 <th className="px-6 py-3">Dia</th>
                 <th className="px-6 py-3">Equipe</th>
                 <th className="px-6 py-3">Tipo</th>
+                <th className="px-6 py-3">Meta da equipe</th>
                 <th className="px-6 py-3">Produzido</th>
                 <th className="px-6 py-3">Obs.</th>
                 <th className="w-28 px-6 py-3" />
@@ -226,7 +234,7 @@ export default function FinancialProductivityPage() {
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     Nenhum lançamento. Use «Novo lançamento» ou o painel.
                   </td>
                 </tr>
@@ -238,6 +246,7 @@ export default function FinancialProductivityPage() {
                     </td>
                     <td className="px-6 py-3 text-white">{p.team.name}</td>
                     <td className="px-6 py-3 text-slate-400">{p.team.team_type || "—"}</td>
+                    <td className="px-6 py-3 text-slate-300">{brl(planIndex[`${p.day}|${p.team_id}`] ?? 0)}</td>
                     <td className="px-6 py-3 font-medium text-emerald-300">{brl(p.produced_value_brl)}</td>
                     <td className="max-w-xs px-6 py-3 text-slate-400">
                       {p.observation ? <span className="line-clamp-2">{p.observation}</span> : "—"}

@@ -9,6 +9,7 @@ import StagesPage from "./pages/StagesPage";
 import EntriesPage from "./pages/EntriesPage";
 import FinancialSection from "./pages/FinancialSection";
 import FinancialPanelPage from "./pages/FinancialPanelPage";
+import FinancialPhysicalComparisonPage from "./pages/FinancialPhysicalComparisonPage";
 import FinancialPlanningPage from "./pages/FinancialPlanningPage";
 import FinancialProductivityPage from "./pages/FinancialProductivityPage";
 import FinancialTeamsPage from "./pages/FinancialTeamsPage";
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="lancamentos" element={<EntriesPage />} />
           <Route path="financeiro" element={<FinancialSection />}>
             <Route index element={<FinancialPanelPage />} />
+            <Route path="comparativo" element={<FinancialPhysicalComparisonPage />} />
             <Route path="equipes" element={<FinancialTeamsPage />} />
             <Route path="planejamento" element={<FinancialPlanningPage />} />
             <Route path="produtividade" element={<FinancialProductivityPage />} />

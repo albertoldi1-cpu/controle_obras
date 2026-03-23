@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 
 from app.models import (
     DailyEntry,
@@ -25,14 +26,14 @@ from app.models import (
 
 
 def build_snapshot_dict(db: Session) -> dict[str, Any]:
-    users = db.scalars(select(User).order_by(User.id)).all()
-    projects = db.scalars(select(Project).order_by(Project.id)).all()
-    stages = db.scalars(select(Stage).order_by(Stage.id)).all()
-    entries = db.scalars(select(DailyEntry).order_by(DailyEntry.id)).all()
-    fin = db.scalars(select(FinancialProductionEntry).order_by(FinancialProductionEntry.id)).all()
-    fteams = db.scalars(select(FinancialTeam).order_by(FinancialTeam.id)).all()
-    fplans = db.scalars(select(FinancialDailyPlan).order_by(FinancialDailyPlan.id)).all()
-    fprod = db.scalars(select(FinancialDailyProduction).order_by(FinancialDailyProduction.id)).all()
+    users = _safe_scalars(db, select(User).order_by(User.id))
+    projects = _safe_scalars(db, select(Project).order_by(Project.id))
+    stages = _safe_scalars(db, select(Stage).order_by(Stage.id))
+    entries = _safe_scalars(db, select(DailyEntry).order_by(DailyEntry.id))
+    fin = _safe_scalars(db, select(FinancialProductionEntry).order_by(FinancialProductionEntry.id))
+    fteams = _safe_scalars(db, select(FinancialTeam).order_by(FinancialTeam.id))
+    fplans = _safe_scalars(db, select(FinancialDailyPlan).order_by(FinancialDailyPlan.id))
+    fprod = _safe_scalars(db, select(FinancialDailyProduction).order_by(FinancialDailyProduction.id))
 
     return {
         "export_version": 1,
@@ -137,6 +138,15 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
             for x in fprod
         ],
     }
+
+
+def _safe_scalars(db: Session, stmt):
+    try:
+        return db.scalars(stmt).all()
+    except OperationalError as exc:
+        if "no such table" in str(exc).lower():
+            return []
+        raise
 
 
 def snapshot_gzip_bytes(db: Session) -> tuple[bytes, str]:

@@ -11,6 +11,7 @@ venv/
 # Banco local (dados reais não versionados — cada ambiente gera o seu)
 backend/data.db
 backend/data.db-*
+backups/
 
 # Node / frontend
 frontend/node_modules/

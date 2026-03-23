@@ -54,6 +54,17 @@ def _stage_farol(p_opt: float, p_pes: float, p_real: float) -> str:
     return "red"
 
 
+def _stage_balance_farol(saldo_pes: float, saldo_opt: float) -> str:
+    # Verde: planejamento pessimista já zerado.
+    # Amarelo: pessimista ainda aberto, mas otimista já zerado.
+    # Vermelho: ambos cenários ainda têm saldo faltante.
+    if saldo_pes <= 1e-6:
+        return "green"
+    if saldo_opt <= 1e-6:
+        return "yellow"
+    return "red"
+
+
 def _weighted_series(stages: list) -> Tuple[List[date], List[float], List[float], List[float]]:
     days = _all_days(stages)
     if not days:
@@ -202,6 +213,9 @@ def build_dashboard(project: Project) -> dict:
             pct_ex = p_real * 100
             pct_ox = p_opt * 100
             pct_px = p_pes * 100
+            saldo_exec = max(float(st.total_quantity) - cx, 0.0)
+            saldo_opt = max(float(st.total_quantity) - co, 0.0)
+            saldo_pes = max(float(st.total_quantity) - cp, 0.0)
             stage_rows.append(
                 {
                     "stage_id": st.id,
@@ -217,6 +231,11 @@ def build_dashboard(project: Project) -> dict:
                     "deviation_vs_pessimistic_pct": rel_deviation_pct(pct_ex, pct_px),
                     "cumulative_executed": round(cx, 3),
                     "cumulative_optimistic": round(co, 3),
+                    "cumulative_pessimistic": round(cp, 3),
+                    "saldo_faltante_executado": round(saldo_exec, 3),
+                    "saldo_faltante_optimista": round(saldo_opt, 3),
+                    "saldo_faltante_pessimista": round(saldo_pes, 3),
+                    "farol_saldo": _stage_balance_farol(saldo_pes, saldo_opt),
                 }
             )
 

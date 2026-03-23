@@ -190,6 +190,53 @@ export default function DashboardPage() {
           </table>
         </div>
       </section>
+
+      <section className="glass overflow-hidden rounded-2xl">
+        <div className="border-b border-white/10 px-6 py-4">
+          <h2 className="font-display text-xl font-semibold text-white">Farol de saldo faltante por etapa</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Verde: saldo pessimista zerado · Amarelo: saldo pessimista aberto, mas otimista zerado · Vermelho:
+            saldos abertos.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-slate-500">
+                <th className="px-6 py-3">Farol</th>
+                <th className="px-6 py-3">Etapa</th>
+                <th className="px-6 py-3">Saldo executado</th>
+                <th className="px-6 py-3">Saldo otimista</th>
+                <th className="px-6 py-3">Saldo pessimista</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stages.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-slate-500">
+                    Cadastre etapas e lançamentos diários para visualizar os saldos.
+                  </td>
+                </tr>
+              ) : (
+                stages.map((s) => (
+                  <tr key={`saldo-${s.stage_id}`} className="border-b border-white/5 transition hover:bg-white/[0.02]">
+                    <td className="px-6 py-3">
+                      <FarolDot farol={s.farol_saldo} />
+                    </td>
+                    <td className="px-6 py-3 font-medium text-white">
+                      {s.name}
+                      {s.unit ? <span className="ml-2 text-xs font-normal text-slate-500">({s.unit})</span> : null}
+                    </td>
+                    <td className="px-6 py-3 text-slate-300">{s.saldo_faltante_executado.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-slate-300">{s.saldo_faltante_optimista.toFixed(2)}</td>
+                    <td className="px-6 py-3 font-medium text-accent-glow">{s.saldo_faltante_pessimista.toFixed(2)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }
