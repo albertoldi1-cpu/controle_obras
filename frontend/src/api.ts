@@ -37,7 +37,19 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       }).then(async (r) => {
-        if (!r.ok) throw new Error((await r.text()) || "Falha no login");
+        if (!r.ok) {
+          const raw = await r.text();
+          let msg = raw;
+          try {
+            const j = JSON.parse(raw) as { detail?: string | string[] };
+            if (j.detail !== undefined) {
+              msg = Array.isArray(j.detail) ? j.detail.join(", ") : String(j.detail);
+            }
+          } catch {
+            /* texto plano */
+          }
+          throw new Error(msg || "Falha no login");
+        }
         return r.json() as Promise<{ access_token: string; user: User }>;
       }),
     me: () => req<User>("/api/auth/me"),

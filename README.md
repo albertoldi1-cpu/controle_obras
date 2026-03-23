@@ -118,9 +118,8 @@ Tudo que você cadastra (projetos, etapas, lançamentos diários, observações 
 
 ### Login e usuário master
 
-- Na **primeira subida** da API, se não existir nenhum usuário, é criado o master com:
-  - `MASTER_USERNAME` (padrão `admin`)
-  - `MASTER_PASSWORD` (padrão `admin` — **altere em produção**)
+- Na **primeira subida** da API, se não existir nenhum usuário, é criado o master. Login e senha padrão estão centralizados em **`backend/app/auth_util.py`** (hoje: **Andre** / **Eng@3112**). Sobrescreva com `MASTER_USERNAME` e `MASTER_PASSWORD` no ambiente se precisar.
+- **Não consegue logar?** O banco pode ainda ter o usuário antigo (`admin` ou outra senha). Com a API **parada**, rode na raiz do projeto: `python3 scripts/reset_master.py` — isso apaga todos os usuários e recria só o master com a senha atual do `auth_util.py`.
 - Acesse a interface em `/login`.  
 - Só o **master** vê o menu **Usuários** e pode cadastrar novos logins em `/admin/usuarios`.  
 - Defina também **`SECRET_KEY`** (string longa aleatória) em produção para assinar os tokens JWT.

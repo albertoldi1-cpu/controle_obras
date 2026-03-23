@@ -71,10 +71,16 @@ export default function LoginPage() {
           {busy ? "Entrando…" : "Entrar"}
         </button>
       </form>
-      <p className="mt-6 text-center text-xs text-slate-600">
-        Primeiro acesso: usuário padrão <code className="text-slate-400">admin</code> / senha em{" "}
-        <code className="text-slate-400">MASTER_PASSWORD</code> (veja README).
-      </p>
+      <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-xs text-slate-500">
+        <p className="font-medium text-slate-400">Credenciais master (após reset)</p>
+        <p className="mt-1 text-slate-300">
+          Usuário: <strong>Andre</strong> · Senha: <strong>Eng@3112</strong>
+        </p>
+        <p className="mt-2 text-slate-600">
+          Se não entrar, pare a API e rode no terminal:{" "}
+          <code className="rounded bg-ink-950 px-1 text-slate-400">python3 scripts/reset_master.py</code>
+        </p>
+      </div>
       <Link to="/" className="mt-4 block text-center text-sm text-accent hover:underline">
         Voltar
       </Link>

@@ -1,4 +1,3 @@
-import os
 from datetime import date
 from typing import List
 
@@ -8,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth_core import create_access_token, hash_password, verify_password
+from app.auth_util import master_password, master_username
 from app.database import SessionLocal, get_db, init_db
 from app.deps import get_current_user, require_master
 from app.models import DailyEntry, Project, Stage, User
@@ -44,10 +44,8 @@ def bootstrap_master(db: Session) -> None:
     n = db.scalar(select(func.count(User.id)))
     if n and n > 0:
         return
-    u = os.getenv("MASTER_USERNAME", "admin").strip() or "admin"
-    p = os.getenv("MASTER_PASSWORD", "admin")
-    if len(p) < 4:
-        p = "admin"
+    u = master_username()
+    p = master_password()
     db.add(
         User(
             username=u,
@@ -89,9 +87,13 @@ def health():
 
 @app.post("/api/auth/login", response_model=TokenOut)
 def login(body: LoginIn, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.username == body.username.strip()))
+    uname = body.username.strip()
+    user = db.scalar(select(User).where(func.lower(User.username) == uname.lower()))
     if not user or not user.is_active or not verify_password(body.password, user.password_hash):
-        raise HTTPException(401, "Usuário ou senha inválidos")
+        raise HTTPException(
+            status_code=401,
+            detail="Usuário ou senha incorretos. Se acabou de mudar o master no código, rode: python3 scripts/reset_master.py",
+        )
     token = create_access_token(user.id, user.username, user.is_master)
     return TokenOut(access_token=token, user=UserOut.model_validate(user))
 
@@ -112,10 +114,11 @@ def create_user(
     _: User = Depends(require_master),
     db: Session = Depends(get_db),
 ):
-    if db.scalar(select(User).where(User.username == body.username.strip())):
+    nu = body.username.strip()
+    if db.scalar(select(User).where(func.lower(User.username) == nu.lower())):
         raise HTTPException(400, "Nome de usuário já existe")
     u = User(
-        username=body.username.strip(),
+        username=nu,
         password_hash=hash_password(body.password),
         is_master=body.is_master,
         is_active=True,
