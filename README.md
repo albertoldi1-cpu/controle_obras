@@ -151,6 +151,17 @@ Veja `backend/.env.example` para a lista de variáveis.
 
 Dentro de cada projeto, a guia **Financeiro** segue as colunas da planilha **AVANÇO PRODUTIVO** (ex.: *CALCULO OBRA DAMHA.xlsx*): data da execução, tipo de equipe, segmento, UEN, obra, código de mão de obra, descrição, quantidade, UPS, R$ UPS e valor — com **curva acumulada** e **totais por equipe**.
 
+### Aba Comparativo Físico × Produtivo
+
+No menu **Financeiro**, a aba **Comp. Físico × Produtivo** cruza em um único painel:
+
+- **Executado físico (%)** (curva do avanço físico já lançado)
+- **Produzido (R$ dia)** (lançamentos de produtividade)
+- **Quantidade produtiva (dia)**
+- **Previsão produtiva otimista/pessimista (R$ dia)**, calculada a partir da relação observada entre avanço físico e valor produzido
+
+A aba possui também **exportação Excel dedicada**, com resumo e série diária para auditoria e acompanhamento da correlação entre avanço físico e avanço financeiro/produtivo.
+
 ### Backup por e-mail (somente variáveis de ambiente)
 
 **Nunca** coloque senha de e-mail no código nem no Git. O master pode usar **Usuários → Enviar backup agora** se o servidor tiver SMTP configurado:
