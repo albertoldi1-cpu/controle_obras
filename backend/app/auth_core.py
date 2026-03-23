@@ -1,15 +1,20 @@
-import os
 import time
 from typing import Any, Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
+from app.settings import dev_secret_key, get_secret_key
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
+
+
+def _jwt_signing_key() -> str:
+    k = get_secret_key()
+    return k if k else dev_secret_key()
 
 
 def hash_password(password: str) -> str:
@@ -28,11 +33,11 @@ def create_access_token(user_id: int, username: str, is_master: bool) -> str:
         "m": is_master,
         "exp": exp,
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, _jwt_signing_key(), algorithm=ALGORITHM)
 
 
 def decode_token(token: str) -> Optional[dict]:
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return jwt.decode(token, _jwt_signing_key(), algorithms=[ALGORITHM])
     except JWTError:
         return None
