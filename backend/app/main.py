@@ -32,7 +32,7 @@ from app.schemas import (
 )
 from app.services.dashboard import build_dashboard
 
-app = FastAPI(title="Obra Controle", version="1.1.0")
+app = FastAPI(title="Controle de Obras de Grande Porte", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -82,7 +82,7 @@ def root():
     if idx.is_file():
         return FileResponse(idx)
     return {
-        "service": "Obra Controle API",
+        "service": "Controle de Obras de Grande Porte API",
         "docs": "/docs",
         "health": "/api/health",
         "hint": "Interface em http://127.0.0.1:5173 após login em /api/auth/login",

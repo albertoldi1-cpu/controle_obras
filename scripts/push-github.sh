@@ -17,7 +17,7 @@ git add -A
 if git diff --cached --quiet 2>/dev/null; then
   echo ">>> Nenhuma alteração nova para commitar (working tree limpo ou só ignorados)."
 else
-  MSG="${1:-Atualização Obra Controle}"
+  MSG="${1:-Atualização Controle de Obras de Grande Porte}"
   git commit -m "$MSG"
   echo ">>> Commit criado: $MSG"
 fi

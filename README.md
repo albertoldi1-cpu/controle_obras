@@ -1,6 +1,6 @@
-# Obra Controle — sistema web de controle de projetos
+# Controle de Obras de Grande Porte
 
-Sistema para cadastrar **etapas**, **planejamento diário** (cenários **otimista** e **pessimista**) e **execução diária**, com **painel** contendo:
+Sistema web para cadastrar **etapas**, **planejamento diário** (cenários **otimista** e **pessimista**) e **execução diária**, com **painel** contendo:
 
 - **Farol por etapa** (verde / amarelo / vermelho) conforme o realizado versus os dois cenários na data de referência  
 - **Curva S** do avanço físico da obra (percentual acumulado ponderado pelos pesos — mesma lógica da planilha de avanço físico)  
@@ -28,7 +28,7 @@ cd obra-controle-web
 git init
 git branch -M main
 git add -A
-git commit -m "Initial commit: Obra Controle"
+git commit -m "Initial commit: Controle de Obras de Grande Porte"
 ```
 
 Depois, no GitHub, crie um repositório vazio e:
@@ -96,7 +96,19 @@ O banco SQLite é criado em `backend/data.db`.
 
 ### Persistência dos dados
 
-Tudo que você cadastra (projetos, etapas, lançamentos diários, observações de execução) é gravado no banco quando a API faz `commit`. O arquivo **`backend/data.db`** (SQLite local) **não entra no Git**.
+Tudo que você cadastra (projetos, etapas, lançamentos diários, observações de execução) é gravado no banco quando a API faz `commit`. O arquivo **`backend/data.db`** (SQLite local) **não entra no Git** — ou seja, **dados digitados no programa não são enviados ao GitHub**; só o código sobe.
+
+### Render e nuvem: por que os dados “sumiram” e como recuperar
+
+Em plataformas como o **Render**, o disco do **container** é em geral **efêmero**: a cada **novo deploy** ou reinício, um SQLite criado só dentro da instância **some**, a menos que exista **disco persistente** dedicado (e mesmo assim, em produção o recomendável é **PostgreSQL**).
+
+| Onde estavam os dados | O que fazer |
+|------------------------|-------------|
+| Só no seu computador (`backend/data.db`) | Eles **não foram para o Render** automaticamente. Configure **`DATABASE_URL`** com um PostgreSQL, rode localmente `python3 scripts/sqlite_to_postgres.py` (com `DATABASE_URL` apontando para esse banco) para **copiar** usuários, projetos, etapas e lançamentos, depois redeploy com a mesma URL. |
+| Já no PostgreSQL do Render | Use **sempre a mesma** instância de banco e a **mesma** `DATABASE_URL` no serviço web. Os dados permanecem no Postgres; não confie em SQLite dentro do container. |
+| Perdidos após deploy sem Postgres | Infelizmente **não há como recuperar** o que estava só no SQLite efêmero do container. A partir daí: Postgres + backup. |
+
+**Resumo:** para produção na nuvem, defina **`DATABASE_URL`** (PostgreSQL) **antes** de usar o sistema de verdade; faça **backup** pelo painel do provedor do banco.
 
 ### Banco online (PostgreSQL) sem perder dados
 
@@ -118,8 +130,8 @@ Tudo que você cadastra (projetos, etapas, lançamentos diários, observações 
 
 ### Login e usuário master
 
-- Na **primeira subida** da API, se não existir nenhum usuário, é criado o master. Login e senha padrão estão centralizados em **`backend/app/auth_util.py`** (hoje: **Andre** / **Eng@3112**). Sobrescreva com `MASTER_USERNAME` e `MASTER_PASSWORD` no ambiente se precisar.
-- **Não consegue logar?** O banco pode ainda ter o usuário antigo (`admin` ou outra senha). Com a API **parada**, rode na raiz do projeto: `python3 scripts/reset_master.py` — isso apaga todos os usuários e recria só o master com a senha atual do `auth_util.py`.
+- Na **primeira subida** da API, se não existir nenhum usuário, é criado o usuário **master**. Usuário e senha padrão vêm de **`backend/app/auth_util.py`**; em produção use **`MASTER_USERNAME`** e **`MASTER_PASSWORD`** no ambiente (não divulgue senhas na interface pública).
+- **Não consegue logar?** O banco pode ainda ter credenciais antigas. Com a API **parada**, na raiz do projeto: `python3 scripts/reset_master.py` — apaga todos os usuários e recria só o master conforme `auth_util.py` ou as variáveis de ambiente.
 - Acesse a interface em `/login`.  
 - Só o **master** vê o menu **Usuários** e pode cadastrar novos logins em `/admin/usuarios`.  
 - Defina também **`SECRET_KEY`** (string longa aleatória) em produção para assinar os tokens JWT.
@@ -205,6 +217,8 @@ O repositório inclui **`Dockerfile`** (build do React + API FastAPI) e **`rende
    - Opcional: **`MASTER_USERNAME`** e **`MASTER_PASSWORD`** para o primeiro usuário master (senão valem os padrões do código).  
 4. Health check: caminho **`/api/health`**.  
 5. Após o deploy, abra a URL do serviço: a **interface** e a **API** ficam no mesmo domínio (`/` e `/api/...`); não é necessário `VITE_API_BASE`.
+
+**Persistência:** cadastros só se mantêm entre deploys se **`DATABASE_URL`** for um **PostgreSQL** fixo (o mesmo em todo deploy). Sem isso, o SQLite dentro do container é efêmero — veja a seção **Render e nuvem: por que os dados “sumiram”** acima e o script **`scripts/sqlite_to_postgres.py`** para trazer dados do `data.db` local.
 
 **Web Service manual (sem Blueprint):** ambiente **Docker** · **Dockerfile path** `Dockerfile` · **Docker build context** `.` (raiz do repo) · **Start Command** em branco (usa o `CMD` do Dockerfile) · defina **`PORT`** apenas se o painel exigir; o Render costuma injetar `PORT` sozinho.
 

@@ -40,8 +40,7 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
-      <h1 className="font-display text-3xl font-bold text-gradient">Obra Controle</h1>
-      <p className="mt-2 text-sm text-slate-500">Entre com seu usuário e senha.</p>
+      <h1 className="font-display text-3xl font-bold text-gradient">Controle de Obras de Grande Porte</h1>
       <form onSubmit={submit} className="glass mt-8 space-y-4 rounded-2xl p-6">
         <div>
           <label className="mb-1 block text-xs text-slate-500">Usuário</label>
@@ -71,16 +70,6 @@ export default function LoginPage() {
           {busy ? "Entrando…" : "Entrar"}
         </button>
       </form>
-      <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-xs text-slate-500">
-        <p className="font-medium text-slate-400">Credenciais master (após reset)</p>
-        <p className="mt-1 text-slate-300">
-          Usuário: <strong>Andre</strong> · Senha: <strong>Eng@3112</strong>
-        </p>
-        <p className="mt-2 text-slate-600">
-          Se não entrar, pare a API e rode no terminal:{" "}
-          <code className="rounded bg-ink-950 px-1 text-slate-400">python3 scripts/reset_master.py</code>
-        </p>
-      </div>
       <Link to="/" className="mt-4 block text-center text-sm text-accent hover:underline">
         Voltar
       </Link>

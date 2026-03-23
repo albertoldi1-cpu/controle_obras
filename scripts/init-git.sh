@@ -12,7 +12,7 @@ git init
 git branch -M main
 git add -A
 git status
-git commit -m "Initial commit: Obra Controle (FastAPI + React + SQLite)"
+git commit -m "Initial commit: Controle de Obras de Grande Porte (FastAPI + React + SQLite)"
 echo ""
 echo "Pronto. Para enviar ao GitHub/GitLab:"
 echo "  git remote add origin https://github.com/SEU_USUARIO/SEU_REPO.git"

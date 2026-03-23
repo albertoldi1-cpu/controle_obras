@@ -77,7 +77,7 @@ export default function HomePage() {
           Controle físico · curva S · farol por etapa
         </div>
         <h1 className="font-display text-4xl font-bold tracking-tight text-gradient md:text-5xl">
-          Obra Controle
+          Controle de Obras de Grande Porte
         </h1>
         <p className="mx-auto mt-4 max-w-lg text-slate-400">
           Planejamento em dois cenários, execução diária e painel executivo para acompanhar desvios e tendência
