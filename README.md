@@ -218,6 +218,8 @@ O repositório inclui **`Dockerfile`** (build do React + API FastAPI) e **`rende
 
 `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'`
 
+**Erro em `pydantic-core` / `metadata-generation-failed`:** o build nativo em Python estava usando **3.14**, onde muitas dependências ainda não têm wheel e o `pip` tenta compilar e falha. O repositório inclui **`.python-version`** na raiz com **`3.12.8`** para o Render usar Python estável. Se o painel ainda escolher 3.14, crie a variável de ambiente **`PYTHON_VERSION`** = `3.12.8` (ou `3.12.11`) no serviço e faça um novo deploy.
+
 Teste local da imagem:
 
 ```bash
