@@ -6,6 +6,7 @@ backend/.venv/
 venv/
 .env
 .env.*
+!backend/.env.example
 
 # Banco local (dados reais não versionados — cada ambiente gera o seu)
 backend/data.db
