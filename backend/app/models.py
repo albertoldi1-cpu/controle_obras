@@ -45,6 +45,18 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="FinancialProductionEntry.exec_date, FinancialProductionEntry.id",
     )
+    financial_daily_plans: Mapped[List["FinancialDailyPlan"]] = relationship(
+        "FinancialDailyPlan",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="FinancialDailyPlan.day, FinancialDailyPlan.team_type",
+    )
+    financial_daily_production: Mapped[List["FinancialDailyProduction"]] = relationship(
+        "FinancialDailyProduction",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="FinancialDailyProduction.day, FinancialDailyProduction.team_type",
+    )
 
 
 class Stage(Base):
@@ -102,3 +114,39 @@ class FinancialProductionEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     project: Mapped["Project"] = relationship("Project", back_populates="financial_entries")
+
+
+class FinancialDailyPlan(Base):
+    """Planejamento financeiro diário: equipes, tipo e meta (valor planejado)."""
+
+    __tablename__ = "financial_daily_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    team_type: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    teams_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    daily_target_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship("Project", back_populates="financial_daily_plans")
+
+    __table_args__ = (UniqueConstraint("project_id", "day", "team_type", name="uq_fin_plan_proj_day_team"),)
+
+
+class FinancialDailyProduction(Base):
+    """Lançamento de produtividade financeira: valor produzido e observações."""
+
+    __tablename__ = "financial_daily_production"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    team_type: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    produced_value_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    observation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship("Project", back_populates="financial_daily_production")
+
+    __table_args__ = (UniqueConstraint("project_id", "day", "team_type", name="uq_fin_prod_proj_day_team"),)

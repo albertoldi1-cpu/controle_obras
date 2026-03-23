@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from sqlalchemy import create_engine, insert, text
+from sqlalchemy import create_engine, inspect, insert, text
 
 ROOT = Path(__file__).resolve().parent.parent
 SQLITE_PATH = ROOT / "backend" / "data.db"
@@ -36,18 +36,31 @@ pg_eng = create_engine(PG_URL, pool_pre_ping=True)
 
 Base.metadata.create_all(bind=pg_eng)
 
-order = [models.User, models.Project, models.Stage, models.DailyEntry, models.FinancialProductionEntry]
+order = [
+    models.User,
+    models.Project,
+    models.Stage,
+    models.DailyEntry,
+    models.FinancialProductionEntry,
+    models.FinancialDailyPlan,
+    models.FinancialDailyProduction,
+]
 
 with pg_eng.begin() as conn:
     conn.execute(
         text(
-            "TRUNCATE TABLE financial_production_entries, daily_entries, stages, projects, users "
+            "TRUNCATE TABLE financial_daily_production, financial_daily_plans, "
+            "financial_production_entries, daily_entries, stages, projects, users "
             "RESTART IDENTITY CASCADE"
         )
     )
 
+sqlite_insp = inspect(sqlite_eng)
 with sqlite_eng.connect() as sc, pg_eng.begin() as pc:
     for Model in order:
+        if not sqlite_insp.has_table(Model.__tablename__):
+            print(f"{Model.__tablename__}: tabela ausente no SQLite, pulando")
+            continue
         rows = sc.execute(Model.__table__.select()).mappings().all()
         if not rows:
             print(f"{Model.__tablename__}: 0 linhas")

@@ -7,7 +7,10 @@ import ProjectShell from "./pages/ProjectShell";
 import DashboardPage from "./pages/DashboardPage";
 import StagesPage from "./pages/StagesPage";
 import EntriesPage from "./pages/EntriesPage";
-import FinancialPage from "./pages/FinancialPage";
+import FinancialSection from "./pages/FinancialSection";
+import FinancialPanelPage from "./pages/FinancialPanelPage";
+import FinancialPlanningPage from "./pages/FinancialPlanningPage";
+import FinancialProductivityPage from "./pages/FinancialProductivityPage";
 
 export default function App() {
   return (
@@ -21,7 +24,11 @@ export default function App() {
           <Route path="painel" element={<DashboardPage />} />
           <Route path="etapas" element={<StagesPage />} />
           <Route path="lancamentos" element={<EntriesPage />} />
-          <Route path="financeiro" element={<FinancialPage />} />
+          <Route path="financeiro" element={<FinancialSection />}>
+            <Route index element={<FinancialPanelPage />} />
+            <Route path="planejamento" element={<FinancialPlanningPage />} />
+            <Route path="produtividade" element={<FinancialProductivityPage />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

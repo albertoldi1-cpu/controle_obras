@@ -198,33 +198,81 @@ class FinancialEntryOut(BaseModel):
     created_at: datetime
 
 
-class FinancialSeriesPoint(BaseModel):
+class FinancialPanelFiltersOut(BaseModel):
+    date_from: Optional[date] = None
+    date_to: Optional[date] = None
+    team_type: Optional[str] = None
+
+
+class FinancialPanelSeriesPoint(BaseModel):
     day: date
-    daily_value: float
-    cumulative_value: float
+    daily_planned_brl: float
+    daily_produced_brl: float
+    cumulative_planned_brl: float
+    cumulative_produced_brl: float
 
 
-class FinancialByTeamRow(BaseModel):
-    team_type: str
-    total_brl: float
-    pct_of_total: float
+class FinancialFarolDayRow(BaseModel):
+    day: date
+    planned_brl: float
+    produced_brl: float
+    teams_count: int
+    farol: Farol
 
 
-class FinancialSummary(BaseModel):
-    entry_count: int
-    total_value_brl: float
-    total_ups: float
-    last_exec_date: Optional[date]
-    avg_value_per_entry: float
+class FinancialPanelSummary(BaseModel):
+    total_planned_brl: float
+    total_produced_brl: float
+    deviation_pct: Optional[float]
+    last_data_day: Optional[date]
 
 
-class FinancialDashboardOut(BaseModel):
+class FinancialPanelDashboardOut(BaseModel):
     project_id: int
     project_name: str
-    summary: FinancialSummary
-    series: List[FinancialSeriesPoint]
-    by_team: List[FinancialByTeamRow]
-    recent_entries: List[FinancialEntryOut]
+    filters: FinancialPanelFiltersOut
+    summary: FinancialPanelSummary
+    series: List[FinancialPanelSeriesPoint]
+    farol_days: List[FinancialFarolDayRow]
+    team_types: List[str]
+
+
+class FinancialDailyPlanIn(BaseModel):
+    day: date
+    team_type: str = Field("", max_length=128)
+    teams_count: int = Field(0, ge=0, le=10000)
+    daily_target_brl: float = Field(0.0, ge=-1e12, le=1e12)
+
+
+class FinancialDailyPlanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    day: date
+    team_type: str
+    teams_count: int
+    daily_target_brl: float
+    created_at: datetime
+
+
+class FinancialDailyProductionIn(BaseModel):
+    day: date
+    team_type: str = Field("", max_length=128)
+    produced_value_brl: float = Field(0.0, ge=-1e12, le=1e12)
+    observation: Optional[str] = Field(None, max_length=4000)
+
+
+class FinancialDailyProductionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    day: date
+    team_type: str
+    produced_value_brl: float
+    observation: Optional[str]
+    created_at: datetime
 
 
 class BackupEmailOut(BaseModel):

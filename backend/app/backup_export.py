@@ -12,7 +12,15 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import DailyEntry, FinancialProductionEntry, Project, Stage, User
+from app.models import (
+    DailyEntry,
+    FinancialDailyPlan,
+    FinancialDailyProduction,
+    FinancialProductionEntry,
+    Project,
+    Stage,
+    User,
+)
 
 
 def build_snapshot_dict(db: Session) -> dict[str, Any]:
@@ -21,6 +29,8 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
     stages = db.scalars(select(Stage).order_by(Stage.id)).all()
     entries = db.scalars(select(DailyEntry).order_by(DailyEntry.id)).all()
     fin = db.scalars(select(FinancialProductionEntry).order_by(FinancialProductionEntry.id)).all()
+    fplans = db.scalars(select(FinancialDailyPlan).order_by(FinancialDailyPlan.id)).all()
+    fprod = db.scalars(select(FinancialDailyProduction).order_by(FinancialDailyProduction.id)).all()
 
     return {
         "export_version": 1,
@@ -88,6 +98,30 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
             for x in fin
+        ],
+        "financial_daily_plans": [
+            {
+                "id": x.id,
+                "project_id": x.project_id,
+                "day": x.day.isoformat(),
+                "team_type": x.team_type,
+                "teams_count": x.teams_count,
+                "daily_target_brl": x.daily_target_brl,
+                "created_at": x.created_at.isoformat() if x.created_at else None,
+            }
+            for x in fplans
+        ],
+        "financial_daily_production": [
+            {
+                "id": x.id,
+                "project_id": x.project_id,
+                "day": x.day.isoformat(),
+                "team_type": x.team_type,
+                "produced_value_brl": x.produced_value_brl,
+                "observation": x.observation,
+                "created_at": x.created_at.isoformat() if x.created_at else None,
+            }
+            for x in fprod
         ],
     }
 

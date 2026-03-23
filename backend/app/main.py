@@ -1,11 +1,12 @@
 import os
 from datetime import date
+from io import BytesIO
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
@@ -15,7 +16,15 @@ from app.auth_util import master_password, master_username
 from app.backup_export import send_backup_via_smtp
 from app.database import SessionLocal, get_db, init_db
 from app.deps import get_current_user, require_master
-from app.models import DailyEntry, FinancialProductionEntry, Project, Stage, User
+from app.models import (
+    DailyEntry,
+    FinancialDailyPlan,
+    FinancialDailyProduction,
+    FinancialProductionEntry,
+    Project,
+    Stage,
+    User,
+)
 from app.rate_limit import login_rate_limited, register_login_attempt
 from app.schemas import (
     BackupEmailOut,
@@ -24,9 +33,13 @@ from app.schemas import (
     DailyEntryIn,
     DailyEntryOut,
     DashboardOut,
-    FinancialDashboardOut,
+    FinancialDailyPlanIn,
+    FinancialDailyPlanOut,
+    FinancialDailyProductionIn,
+    FinancialDailyProductionOut,
     FinancialEntryIn,
     FinancialEntryOut,
+    FinancialPanelDashboardOut,
     LoginIn,
     ProjectCreate,
     ProjectOut,
@@ -38,7 +51,7 @@ from app.schemas import (
     UserOut,
 )
 from app.services.dashboard import build_dashboard
-from app.services.financial import build_financial_dashboard
+from app.services.financial import build_financial_panel_dashboard, financial_excel_bytes
 from app.settings import cors_origins, docs_enabled
 
 app = FastAPI(
@@ -427,19 +440,225 @@ def bulk_executed(
     return {"upserted": count}
 
 
-# --- Avanço produtivo / financeiro ---
+# --- Painel financeiro (avanço produtivo: planejado × produzido) ---
 
 
-@app.get("/api/projects/{project_id}/financial/dashboard", response_model=FinancialDashboardOut)
-def get_financial_dashboard(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    p = db.scalar(
-        select(Project)
-        .options(joinedload(Project.financial_entries))
-        .where(Project.id == project_id)
-    )
+@app.get("/api/projects/{project_id}/financial/dashboard", response_model=FinancialPanelDashboardOut)
+def get_financial_dashboard(
+    project_id: int,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    team_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
-    return build_financial_dashboard(p)
+    return build_financial_panel_dashboard(db, p, date_from, date_to, team_type)
+
+
+@app.get("/api/projects/{project_id}/financial/export.xlsx")
+def export_financial_xlsx(
+    project_id: int,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    team_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    data, fname = financial_excel_bytes(db, p, date_from, date_to, team_type)
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@app.get("/api/projects/{project_id}/financial/plans", response_model=List[FinancialDailyPlanOut])
+def list_financial_plans(project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    return db.scalars(
+        select(FinancialDailyPlan)
+        .where(FinancialDailyPlan.project_id == project_id)
+        .order_by(FinancialDailyPlan.day.desc(), FinancialDailyPlan.team_type)
+    ).all()
+
+
+@app.post("/api/projects/{project_id}/financial/plans", response_model=FinancialDailyPlanOut)
+def create_financial_plan(
+    project_id: int,
+    body: FinancialDailyPlanIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    tt = body.team_type.strip()
+    dup = db.scalar(
+        select(FinancialDailyPlan).where(
+            FinancialDailyPlan.project_id == project_id,
+            FinancialDailyPlan.day == body.day,
+            FinancialDailyPlan.team_type == tt,
+        )
+    )
+    if dup:
+        raise HTTPException(400, "Já existe planejamento para esta data e tipo de equipe")
+    row = FinancialDailyPlan(
+        project_id=project_id,
+        day=body.day,
+        team_type=tt,
+        teams_count=body.teams_count,
+        daily_target_brl=body.daily_target_brl,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.put("/api/projects/{project_id}/financial/plans/{plan_id}", response_model=FinancialDailyPlanOut)
+def update_financial_plan(
+    project_id: int,
+    plan_id: int,
+    body: FinancialDailyPlanIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialDailyPlan, plan_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Planejamento não encontrado")
+    tt = body.team_type.strip()
+    clash = db.scalar(
+        select(FinancialDailyPlan).where(
+            FinancialDailyPlan.project_id == project_id,
+            FinancialDailyPlan.day == body.day,
+            FinancialDailyPlan.team_type == tt,
+            FinancialDailyPlan.id != plan_id,
+        )
+    )
+    if clash:
+        raise HTTPException(400, "Já existe planejamento para esta data e tipo de equipe")
+    row.day = body.day
+    row.team_type = tt
+    row.teams_count = body.teams_count
+    row.daily_target_brl = body.daily_target_brl
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.delete("/api/projects/{project_id}/financial/plans/{plan_id}")
+def delete_financial_plan(
+    project_id: int,
+    plan_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialDailyPlan, plan_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Planejamento não encontrado")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/projects/{project_id}/financial/production", response_model=List[FinancialDailyProductionOut])
+def list_financial_production(
+    project_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    return db.scalars(
+        select(FinancialDailyProduction)
+        .where(FinancialDailyProduction.project_id == project_id)
+        .order_by(FinancialDailyProduction.day.desc(), FinancialDailyProduction.team_type)
+    ).all()
+
+
+@app.post("/api/projects/{project_id}/financial/production", response_model=FinancialDailyProductionOut)
+def create_financial_production(
+    project_id: int,
+    body: FinancialDailyProductionIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    tt = body.team_type.strip()
+    dup = db.scalar(
+        select(FinancialDailyProduction).where(
+            FinancialDailyProduction.project_id == project_id,
+            FinancialDailyProduction.day == body.day,
+            FinancialDailyProduction.team_type == tt,
+        )
+    )
+    if dup:
+        raise HTTPException(400, "Já existe lançamento de produção para esta data e tipo de equipe")
+    row = FinancialDailyProduction(
+        project_id=project_id,
+        day=body.day,
+        team_type=tt,
+        produced_value_brl=body.produced_value_brl,
+        observation=(body.observation or "").strip() or None,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.put("/api/projects/{project_id}/financial/production/{prod_id}", response_model=FinancialDailyProductionOut)
+def update_financial_production(
+    project_id: int,
+    prod_id: int,
+    body: FinancialDailyProductionIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialDailyProduction, prod_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Lançamento não encontrado")
+    tt = body.team_type.strip()
+    clash = db.scalar(
+        select(FinancialDailyProduction).where(
+            FinancialDailyProduction.project_id == project_id,
+            FinancialDailyProduction.day == body.day,
+            FinancialDailyProduction.team_type == tt,
+            FinancialDailyProduction.id != prod_id,
+        )
+    )
+    if clash:
+        raise HTTPException(400, "Já existe lançamento de produção para esta data e tipo de equipe")
+    row.day = body.day
+    row.team_type = tt
+    row.produced_value_brl = body.produced_value_brl
+    row.observation = (body.observation or "").strip() or None
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.delete("/api/projects/{project_id}/financial/production/{prod_id}")
+def delete_financial_production(
+    project_id: int,
+    prod_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialDailyProduction, prod_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Lançamento não encontrado")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+# --- Lançamentos detalhados (planilha UPS / mão de obra) ---
 
 
 @app.get("/api/projects/{project_id}/financial/entries", response_model=List[FinancialEntryOut])

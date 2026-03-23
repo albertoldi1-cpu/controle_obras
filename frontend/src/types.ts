@@ -78,6 +78,7 @@ export interface Dashboard {
   stages: StageDashboardRow[];
 }
 
+/** Lançamento detalhado (planilha UPS) — API legada */
 export interface FinancialEntry {
   id: number;
   project_id: number;
@@ -96,31 +97,61 @@ export interface FinancialEntry {
   created_at: string;
 }
 
-export interface FinancialSeriesPoint {
+export interface FinancialPanelFilters {
+  date_from: string | null;
+  date_to: string | null;
+  team_type: string | null;
+}
+
+export interface FinancialPanelSeriesPoint {
   day: string;
-  daily_value: number;
-  cumulative_value: number;
+  daily_planned_brl: number;
+  daily_produced_brl: number;
+  cumulative_planned_brl: number;
+  cumulative_produced_brl: number;
 }
 
-export interface FinancialByTeamRow {
-  team_type: string;
-  total_brl: number;
-  pct_of_total: number;
+export interface FinancialFarolDayRow {
+  day: string;
+  planned_brl: number;
+  produced_brl: number;
+  teams_count: number;
+  farol: Farol;
 }
 
-export interface FinancialSummary {
-  entry_count: number;
-  total_value_brl: number;
-  total_ups: number;
-  last_exec_date: string | null;
-  avg_value_per_entry: number;
+export interface FinancialPanelSummary {
+  total_planned_brl: number;
+  total_produced_brl: number;
+  deviation_pct: number | null;
+  last_data_day: string | null;
 }
 
-export interface FinancialDashboard {
+export interface FinancialPanelDashboard {
   project_id: number;
   project_name: string;
-  summary: FinancialSummary;
-  series: FinancialSeriesPoint[];
-  by_team: FinancialByTeamRow[];
-  recent_entries: FinancialEntry[];
+  filters: FinancialPanelFilters;
+  summary: FinancialPanelSummary;
+  series: FinancialPanelSeriesPoint[];
+  farol_days: FinancialFarolDayRow[];
+  team_types: string[];
+}
+
+export interface FinancialDailyPlan {
+  id: number;
+  project_id: number;
+  day: string;
+  team_type: string;
+  teams_count: number;
+  daily_target_brl: number;
+  created_at: string;
+}
+
+export interface FinancialDailyProduction {
+  id: number;
+  project_id: number;
+  day: string;
+  team_type: string;
+  produced_value_brl: number;
+  observation: string | null;
+  created_at: string;
 }

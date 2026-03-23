@@ -7,11 +7,11 @@ import clsx from "clsx";
 import { useAuth } from "../auth/AuthContext";
 
 const tabs = [
-  { to: "painel", label: "Painel", icon: Gauge },
-  { to: "etapas", label: "Etapas", icon: Layers },
-  { to: "lancamentos", label: "Lançamentos", icon: ClipboardList },
-  { to: "financeiro", label: "Financeiro", icon: Banknote },
-];
+  { to: "painel", label: "Avanço físico", icon: Gauge, end: true },
+  { to: "etapas", label: "Etapas", icon: Layers, end: true },
+  { to: "lancamentos", label: "Lançamentos", icon: ClipboardList, end: true },
+  { to: "financeiro", label: "Financeiro", icon: Banknote, end: false },
+] as const;
 
 export default function ProjectShell() {
   const { id } = useParams();
@@ -54,10 +54,11 @@ export default function ProjectShell() {
             </div>
           </div>
           <nav className="flex flex-wrap items-center gap-1">
-            {tabs.map(({ to, label, icon: Icon }) => (
+            {tabs.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
                 to={`/projeto/${projectId}/${to}`}
+                end={end}
                 className={({ isActive }) =>
                   clsx(
                     "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition",

@@ -1,4 +1,14 @@
-import type { DailyEntry, Dashboard, FinancialDashboard, FinancialEntry, Project, Stage, User } from "./types";
+import type {
+  DailyEntry,
+  Dashboard,
+  FinancialDailyPlan,
+  FinancialDailyProduction,
+  FinancialEntry,
+  FinancialPanelDashboard,
+  Project,
+  Stage,
+  User,
+} from "./types";
 
 const base = import.meta.env.VITE_API_BASE ?? "";
 
@@ -27,6 +37,15 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (r.status === 204) return undefined as T;
   return r.json() as Promise<T>;
+}
+
+function financialQueryString(q?: { date_from?: string; date_to?: string; team_type?: string }) {
+  const sp = new URLSearchParams();
+  if (q?.date_from) sp.set("date_from", q.date_from);
+  if (q?.date_to) sp.set("date_to", q.date_to);
+  if (q?.team_type) sp.set("team_type", q.team_type);
+  const s = sp.toString();
+  return s ? `?${s}` : "";
 }
 
 export const api = {
@@ -112,9 +131,71 @@ export const api = {
     }),
   dashboard: (projectId: number) => req<Dashboard>(`/api/projects/${projectId}/dashboard`),
   financial: {
-    dashboard: (projectId: number) => req<FinancialDashboard>(`/api/projects/${projectId}/financial/dashboard`),
-    list: (projectId: number) => req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
-    create: (
+    panel: (projectId: number, q?: { date_from?: string; date_to?: string; team_type?: string }) =>
+      req<FinancialPanelDashboard>(
+        `/api/projects/${projectId}/financial/dashboard${financialQueryString(q)}`
+      ),
+    exportXlsx: async (
+      projectId: number,
+      q?: { date_from?: string; date_to?: string; team_type?: string }
+    ): Promise<Blob> => {
+      const path = `/api/projects/${projectId}/financial/export.xlsx${financialQueryString(q)}`;
+      const r = await fetch(`${base}${path}`, { headers: authHeaders() });
+      if (r.status === 401) {
+        localStorage.removeItem("obra_token");
+        throw new Error("Sessão expirada. Faça login novamente.");
+      }
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t || r.statusText);
+      }
+      return r.blob();
+    },
+    listPlans: (projectId: number) =>
+      req<FinancialDailyPlan[]>(`/api/projects/${projectId}/financial/plans`),
+    createPlan: (
+      projectId: number,
+      body: Pick<FinancialDailyPlan, "day" | "team_type" | "teams_count" | "daily_target_brl">
+    ) =>
+      req<FinancialDailyPlan>(`/api/projects/${projectId}/financial/plans`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updatePlan: (
+      projectId: number,
+      planId: number,
+      body: Pick<FinancialDailyPlan, "day" | "team_type" | "teams_count" | "daily_target_brl">
+    ) =>
+      req<FinancialDailyPlan>(`/api/projects/${projectId}/financial/plans/${planId}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    deletePlan: (projectId: number, planId: number) =>
+      req(`/api/projects/${projectId}/financial/plans/${planId}`, { method: "DELETE" }),
+    listProduction: (projectId: number) =>
+      req<FinancialDailyProduction[]>(`/api/projects/${projectId}/financial/production`),
+    createProduction: (
+      projectId: number,
+      body: Pick<FinancialDailyProduction, "day" | "team_type" | "produced_value_brl" | "observation">
+    ) =>
+      req<FinancialDailyProduction>(`/api/projects/${projectId}/financial/production`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateProduction: (
+      projectId: number,
+      prodId: number,
+      body: Pick<FinancialDailyProduction, "day" | "team_type" | "produced_value_brl" | "observation">
+    ) =>
+      req<FinancialDailyProduction>(`/api/projects/${projectId}/financial/production/${prodId}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    deleteProduction: (projectId: number, prodId: number) =>
+      req(`/api/projects/${projectId}/financial/production/${prodId}`, { method: "DELETE" }),
+    listLegacyEntries: (projectId: number) =>
+      req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
+    createLegacyEntry: (
       projectId: number,
       body: Omit<FinancialEntry, "id" | "project_id" | "created_at">
     ) =>
@@ -122,7 +203,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    delete: (projectId: number, entryId: number) =>
+    deleteLegacyEntry: (projectId: number, entryId: number) =>
       req(`/api/projects/${projectId}/financial/entries/${entryId}`, { method: "DELETE" }),
   },
   admin: {

@@ -56,6 +56,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      <div className="rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/[0.08] via-transparent to-slate-900/40 p-6 md:p-8">
+        <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Avanço Físico</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-400">
+          Acompanhamento de etapas, curva S e farol físico (otimista, pessimista e executado).
+        </p>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="glass rounded-2xl p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Executado (obra)</p>
