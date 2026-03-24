@@ -56,12 +56,7 @@ from app.schemas import (
     UserCreateByMaster,
     UserOut,
 )
-from app.services.csv_import import (
-    import_entries_executed_csv,
-    import_entries_planned_csv,
-    import_financial_plans_csv,
-    import_financial_production_csv,
-)
+from app.services.spreadsheet_import import import_from_upload
 from app.services.dashboard import build_dashboard
 from app.services.financial import (
     build_financial_panel_dashboard,
@@ -484,8 +479,8 @@ def bulk_executed(
     return {"upserted": count}
 
 
-@app.post("/api/projects/{project_id}/entries/import.csv", response_model=CsvImportOut)
-async def import_project_entries_csv(
+@app.post("/api/projects/{project_id}/entries/import.xls", response_model=CsvImportOut)
+async def import_project_entries_spreadsheet(
     project_id: int,
     kind: Literal["planned", "executed"],
     file: UploadFile = File(...),
@@ -494,11 +489,12 @@ async def import_project_entries_csv(
 ):
     if not db.get(Project, project_id):
         raise HTTPException(404, "Projeto não encontrado")
-    raw = (await file.read()).decode("utf-8-sig", errors="replace")
-    if kind == "planned":
-        n, errors = import_entries_planned_csv(db, project_id, raw)
-    else:
-        n, errors = import_entries_executed_csv(db, project_id, raw)
+    raw = await file.read()
+    fn = file.filename or "upload.xlsx"
+    try:
+        n, errors = import_from_upload(db, project_id, raw, fn, kind=kind, scope="entries")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return CsvImportOut(upserted=n, errors=errors)
 
 
@@ -746,8 +742,8 @@ def update_financial_plan(
     ).first()
 
 
-@app.post("/api/projects/{project_id}/financial/import.csv", response_model=CsvImportOut)
-async def import_financial_csv(
+@app.post("/api/projects/{project_id}/financial/import.xls", response_model=CsvImportOut)
+async def import_financial_spreadsheet(
     project_id: int,
     kind: Literal["plans", "production"],
     file: UploadFile = File(...),
@@ -756,11 +752,12 @@ async def import_financial_csv(
 ):
     if not db.get(Project, project_id):
         raise HTTPException(404, "Projeto não encontrado")
-    raw = (await file.read()).decode("utf-8-sig", errors="replace")
-    if kind == "plans":
-        n, errors = import_financial_plans_csv(db, project_id, raw)
-    else:
-        n, errors = import_financial_production_csv(db, project_id, raw)
+    raw = await file.read()
+    fn = file.filename or "upload.xlsx"
+    try:
+        n, errors = import_from_upload(db, project_id, raw, fn, kind=kind, scope="financial")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return CsvImportOut(upserted=n, errors=errors)
 
 

@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Save } from "lucide-react";
 import { api } from "../api";
 import type { Stage } from "../types";
-import CsvImportBlock from "../components/CsvImportBlock";
+import SpreadsheetImportBlock from "../components/SpreadsheetImportBlock";
 
 type Ctx = { projectId: number };
 
@@ -222,30 +222,33 @@ export default function EntriesPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <CsvImportBlock
-          title="Importar planejado (otimista / pessimista) — CSV"
-          description="UTF-8. Uma linha por etapa e dia. stage_id = coluna id na aba Etapas."
-          modelLines={[
-            "Linha 1: stage_id,day,planned_optimistic,planned_pessimistic",
-            "Linhas 2+: 3,2025-03-20,120,100",
-            `Etapa(s) deste projeto: ${stages.map((s) => `id ${s.id} = ${s.name}`).join(" · ") || "—"}`,
+        <SpreadsheetImportBlock
+          title="Importar planejado (otimista / pessimista)"
+          specLines={[
+            "Arquivo Excel (.xlsx recomendado, ou .xls). O sistema lê somente a primeira aba da planilha.",
+            "Linha 1 = cabeçalho fixo, colunas A a D com estes títulos exatos: stage_id | day | planned_optimistic | planned_pessimistic",
+            "A partir da linha 2: uma linha por combinação etapa + dia. stage_id = número inteiro da etapa (confira na aba Etapas deste projeto).",
+            `Etapas deste projeto: ${stages.map((s) => `id ${s.id} = ${s.name}`).join(" · ") || "cadastre etapas antes."}`,
+            "day: data em texto AAAA-MM-DD ou DD/MM/AAAA (ou célula formatada como data no Excel). planned_optimistic e planned_pessimistic: quantidades numéricas (decimais com vírgula ou ponto).",
+            "Comportamento: se já existir registro para a mesma etapa e data, os valores otimista e pessimista são atualizados; caso contrário, é criado um novo lançamento com executado zerado.",
           ]}
           onImport={async (file) => {
-            const r = await api.importEntriesCsv(projectId, "planned", file);
+            const r = await api.importEntriesSpreadsheet(projectId, "planned", file);
             await loadAll();
             return r;
           }}
         />
-        <CsvImportBlock
-          title="Importar executado — CSV"
-          description="UTF-8. Observação na 4ª coluna (opcional)."
-          modelLines={[
-            "Linha 1: stage_id,day,executed,execution_note",
-            "Linhas 2+: 3,2025-03-20,95,chuva",
-            `Etapa(s): ${stages.map((s) => `id ${s.id} = ${s.name}`).join(" · ") || "—"}`,
+        <SpreadsheetImportBlock
+          title="Importar executado (produção física no dia)"
+          specLines={[
+            "Arquivo Excel (.xlsx ou .xls), primeira aba apenas.",
+            "Linha 1 = cabeçalho: colunas A a D — stage_id | day | executed | execution_note (a coluna D é opcional).",
+            "Linhas 2 em diante: stage_id (inteiro), day (data como acima), executed (quantidade realizada no dia), execution_note (texto livre; pode ficar vazio).",
+            `Etapas: ${stages.map((s) => `id ${s.id} = ${s.name}`).join(" · ") || "—"}`,
+            "Atualiza o executado (e observação, se informada) quando já existir etapa+dia; senão cria lançamento com planejado otimista/pessimista em zero.",
           ]}
           onImport={async (file) => {
-            const r = await api.importEntriesCsv(projectId, "executed", file);
+            const r = await api.importEntriesSpreadsheet(projectId, "executed", file);
             await loadAll();
             return r;
           }}

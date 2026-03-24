@@ -42,7 +42,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json() as Promise<T>;
 }
 
-async function postCsvImport(path: string, file: File): Promise<CsvImportResult> {
+async function postSpreadsheetImport(path: string, file: File): Promise<CsvImportResult> {
   const t = localStorage.getItem("obra_token");
   const fd = new FormData();
   fd.append("file", file);
@@ -161,8 +161,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ entries }),
     }),
-  importEntriesCsv: (projectId: number, kind: "planned" | "executed", file: File) =>
-    postCsvImport(`/api/projects/${projectId}/entries/import.csv?kind=${kind}`, file),
+  importEntriesSpreadsheet: (projectId: number, kind: "planned" | "executed", file: File) =>
+    postSpreadsheetImport(`/api/projects/${projectId}/entries/import.xls?kind=${kind}`, file),
   dashboard: (projectId: number) => req<Dashboard>(`/api/projects/${projectId}/dashboard`),
   financial: {
     panel: (projectId: number, q?: { date_from?: string; date_to?: string; team_id?: number }) =>
@@ -272,8 +272,8 @@ export const api = {
       }),
     deleteProduction: (projectId: number, prodId: number) =>
       req(`/api/projects/${projectId}/financial/production/${prodId}`, { method: "DELETE" }),
-    importCsv: (projectId: number, kind: "plans" | "production", file: File) =>
-      postCsvImport(`/api/projects/${projectId}/financial/import.csv?kind=${kind}`, file),
+    importSpreadsheet: (projectId: number, kind: "plans" | "production", file: File) =>
+      postSpreadsheetImport(`/api/projects/${projectId}/financial/import.xls?kind=${kind}`, file),
     listLegacyEntries: (projectId: number) =>
       req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
     createLegacyEntry: (

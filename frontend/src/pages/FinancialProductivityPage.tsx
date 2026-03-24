@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "../api";
 import type { FinancialDailyProduction, FinancialTeam } from "../types";
-import CsvImportBlock from "../components/CsvImportBlock";
+import SpreadsheetImportBlock from "../components/SpreadsheetImportBlock";
 
 type Ctx = { projectId: number };
 
@@ -132,16 +132,16 @@ export default function FinancialProductivityPage() {
 
       {err && <p className="text-sm text-signal-bad">{err}</p>}
 
-      <CsvImportBlock
-        title="Importar produção realizada (CSV)"
-        description="UTF-8. Cabeçalho na linha 1; dados da linha 2 em diante."
-        modelLines={[
-          "Linha 1: day,team_id,produced_value_brl,observation",
-          "Linhas 2+: 2025-03-20,1,4800,Chuva",
-          "observation é opcional. Atualiza se já existir dia+equipe.",
+      <SpreadsheetImportBlock
+        title="Importar produção realizada (valor R$ por equipe e dia)"
+        specLines={[
+          "Excel .xlsx ou .xls; somente a primeira aba.",
+          "Linha 1 — cabeçalho: day | team_id | produced_value_brl | observation (coluna D opcional).",
+          "Linhas seguintes: data do dia; team_id da equipe que produziu; produced_value_brl (valor realizado em reais); observation (texto, opcional).",
+          "Valores em R$ devem ser numéricos. Chave única: projeto + data + equipe — linha existente é atualizada; nova combinação gera novo lançamento.",
         ]}
         onImport={async (file) => {
-          const r = await api.financial.importCsv(projectId, "production", file);
+          const r = await api.financial.importSpreadsheet(projectId, "production", file);
           await load();
           return r;
         }}

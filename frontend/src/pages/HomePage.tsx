@@ -79,10 +79,6 @@ export default function HomePage() {
         <h1 className="font-display text-4xl font-bold tracking-tight text-gradient md:text-5xl">
           Controle de Obras de Grande Porte
         </h1>
-        <p className="mx-auto mt-4 max-w-lg text-slate-400">
-          Planejamento em dois cenários, execução diária e painel executivo para acompanhar desvios e tendência
-          da obra — pronto para compartilhar via web.
-        </p>
       </header>
 
       <form onSubmit={create} className="glass mb-10 flex flex-col gap-3 rounded-2xl p-6 sm:flex-row sm:items-end">

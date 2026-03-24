@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "../api";
 import type { FinancialDailyPlan, FinancialTeam } from "../types";
-import CsvImportBlock from "../components/CsvImportBlock";
+import SpreadsheetImportBlock from "../components/SpreadsheetImportBlock";
 
 type Ctx = { projectId: number };
 
@@ -119,17 +119,17 @@ export default function FinancialPlanningPage() {
       {err && <p className="text-sm text-signal-bad">{err}</p>}
 
       <div className="grid gap-4 lg:grid-cols-1">
-        <CsvImportBlock
-          title="Importar planejamento (CSV)"
-          description="Arquivo .csv codificado em UTF-8. A primeira linha é o cabeçalho; os dados começam na linha 2."
-          modelLines={[
-            "Linha 1 (cabeçalho): day,team_id,daily_target_brl,daily_planning_brl",
-            "Linhas 2+: 2025-03-20,1,5000,5200",
-            "daily_planning_brl pode ficar vazio ou 0. Dia: AAAA-MM-DD ou DD/MM/AAAA.",
-            "team_id: id numérico da equipe (aba Equipes). Atualiza registro se já existir dia+equipe.",
+        <SpreadsheetImportBlock
+          title="Importar planejamento financeiro (metas por equipe e dia)"
+          specLines={[
+            "Planilha Excel .xlsx ou .xls; apenas a primeira aba é lida.",
+            "Linha 1 — cabeçalho nas colunas A a D, exatamente: day | team_id | daily_target_brl | daily_planning_brl",
+            "Linha 2 em diante: day (data AAAA-MM-DD, DD/MM/AAAA ou célula data); team_id (número inteiro da equipe, conforme cadastro em Equipes); daily_target_brl (meta da equipe em R$); daily_planning_brl (planejamento diário em R$, pode ser 0 ou célula vazia).",
+            "Todos os valores monetários devem ser numéricos. Linhas totalmente vazias são ignoradas.",
+            "Chave única no sistema: projeto + data + equipe. Se já existir registro, meta e planejamento diário são substituídos pelos valores da planilha.",
           ]}
           onImport={async (file) => {
-            const r = await api.financial.importCsv(projectId, "plans", file);
+            const r = await api.financial.importSpreadsheet(projectId, "plans", file);
             await load();
             return r;
           }}
