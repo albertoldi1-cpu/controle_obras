@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "../api";
 import type { FinancialDailyPlan, FinancialTeam } from "../types";
+import CsvImportBlock from "../components/CsvImportBlock";
 
 type Ctx = { projectId: number };
 
@@ -14,6 +15,7 @@ const emptyForm = (teamId: number) => ({
   day: new Date().toISOString().slice(0, 10),
   team_id: teamId,
   daily_target_brl: 0,
+  daily_planning_brl: 0,
 });
 
 export default function FinancialPlanningPage() {
@@ -58,6 +60,7 @@ export default function FinancialPlanningPage() {
       day: p.day,
       team_id: p.team_id,
       daily_target_brl: p.daily_target_brl,
+      daily_planning_brl: p.daily_planning_brl ?? 0,
     });
     setShowForm(true);
   }
@@ -71,6 +74,7 @@ export default function FinancialPlanningPage() {
         day: form.day,
         team_id: form.team_id,
         daily_target_brl: form.daily_target_brl,
+        daily_planning_brl: form.daily_planning_brl,
       };
       if (editingId !== null) {
         await api.financial.updatePlan(projectId, editingId, body);
@@ -114,6 +118,24 @@ export default function FinancialPlanningPage() {
 
       {err && <p className="text-sm text-signal-bad">{err}</p>}
 
+      <div className="grid gap-4 lg:grid-cols-1">
+        <CsvImportBlock
+          title="Importar planejamento (CSV)"
+          description="Arquivo .csv codificado em UTF-8. A primeira linha é o cabeçalho; os dados começam na linha 2."
+          modelLines={[
+            "Linha 1 (cabeçalho): day,team_id,daily_target_brl,daily_planning_brl",
+            "Linhas 2+: 2025-03-20,1,5000,5200",
+            "daily_planning_brl pode ficar vazio ou 0. Dia: AAAA-MM-DD ou DD/MM/AAAA.",
+            "team_id: id numérico da equipe (aba Equipes). Atualiza registro se já existir dia+equipe.",
+          ]}
+          onImport={async (file) => {
+            const r = await api.financial.importCsv(projectId, "plans", file);
+            await load();
+            return r;
+          }}
+        />
+      </div>
+
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -131,7 +153,7 @@ export default function FinancialPlanningPage() {
           <h2 className="mb-4 font-display text-lg font-semibold text-white">
             {editingId !== null ? "Editar planejamento" : "Novo planejamento"}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="mb-1 block text-xs text-slate-500">Dia</label>
               <input
@@ -148,7 +170,17 @@ export default function FinancialPlanningPage() {
                 required
                 className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
                 value={String(form.team_id)}
-                onChange={(e) => setForm((f) => ({ ...f, team_id: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const tid = Number(e.target.value);
+                  const tm = teams.find((t) => t.id === tid);
+                  const def = tm?.default_daily_target_brl;
+                  setForm((f) => ({
+                    ...f,
+                    team_id: tid,
+                    daily_target_brl:
+                      def != null && Number.isFinite(def) && def > 0 ? def : f.daily_target_brl,
+                  }));
+                }}
               >
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -167,6 +199,17 @@ export default function FinancialPlanningPage() {
                 className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
                 value={form.daily_target_brl}
                 onChange={(e) => setForm((f) => ({ ...f, daily_target_brl: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Planejamento diário (R$)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                value={form.daily_planning_brl}
+                onChange={(e) => setForm((f) => ({ ...f, daily_planning_brl: Number(e.target.value) }))}
               />
             </div>
           </div>
@@ -204,14 +247,15 @@ export default function FinancialPlanningPage() {
                 <th className="px-6 py-3">Dia</th>
                 <th className="px-6 py-3">Equipe</th>
                 <th className="px-6 py-3">Tipo</th>
-                <th className="px-6 py-3">Meta da equipe</th>
+                <th className="px-6 py-3">Meta equipe</th>
+                <th className="px-6 py-3">Planej. diário</th>
                 <th className="w-28 px-6 py-3" />
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                     Nenhum planejamento. Use «Novo planejamento» ou o painel.
                   </td>
                 </tr>
@@ -224,6 +268,7 @@ export default function FinancialPlanningPage() {
                     <td className="px-6 py-3 text-white">{p.team.name}</td>
                     <td className="px-6 py-3 text-slate-400">{p.team.team_type || "—"}</td>
                     <td className="px-6 py-3 font-medium text-slate-200">{brl(p.daily_target_brl)}</td>
+                    <td className="px-6 py-3 text-slate-300">{brl(p.daily_planning_brl ?? 0)}</td>
                     <td className="px-6 py-3">
                       <div className="flex gap-1">
                         <button

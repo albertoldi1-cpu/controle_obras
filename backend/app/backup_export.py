@@ -111,6 +111,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "team_type": x.team_type,
                 "uen": x.uen,
                 "encarregado": x.encarregado,
+                "default_daily_target_brl": x.default_daily_target_brl,
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
             for x in fteams
@@ -122,6 +123,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "day": x.day.isoformat(),
                 "team_id": x.team_id,
                 "daily_target_brl": x.daily_target_brl,
+                "daily_planning_brl": getattr(x, "daily_planning_brl", 0.0) or 0.0,
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
             for x in fplans

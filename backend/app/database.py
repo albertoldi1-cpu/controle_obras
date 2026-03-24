@@ -181,6 +181,40 @@ def migrate_projects_obra_total():
         conn.execute(text(f"ALTER TABLE projects ADD COLUMN obra_total_value_brl {typ}"))
 
 
+def migrate_financial_team_default_target():
+    try:
+        insp = inspect(engine)
+    except Exception:
+        return
+    if not insp.has_table("financial_teams"):
+        return
+    cols = {c["name"] for c in insp.get_columns("financial_teams")}
+    if "default_daily_target_brl" in cols:
+        return
+    typ = "REAL" if engine.dialect.name == "sqlite" else "DOUBLE PRECISION"
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE financial_teams ADD COLUMN default_daily_target_brl {typ}"))
+
+
+def migrate_financial_daily_plan_planning():
+    try:
+        insp = inspect(engine)
+    except Exception:
+        return
+    if not insp.has_table("financial_daily_plans"):
+        return
+    cols = {c["name"] for c in insp.get_columns("financial_daily_plans")}
+    if "daily_planning_brl" in cols:
+        return
+    typ = "REAL" if engine.dialect.name == "sqlite" else "DOUBLE PRECISION"
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE financial_daily_plans ADD COLUMN daily_planning_brl {typ}"))
+        try:
+            conn.execute(text("UPDATE financial_daily_plans SET daily_planning_brl = 0 WHERE daily_planning_brl IS NULL"))
+        except Exception:
+            pass
+
+
 def init_db():
     from app import models  # noqa: F401 — registra tabelas
 
@@ -189,3 +223,5 @@ def init_db():
     migrate_financial_teams_schema()
     backfill_financial_team_fks()
     migrate_projects_obra_total()
+    migrate_financial_team_default_target()
+    migrate_financial_daily_plan_planning()

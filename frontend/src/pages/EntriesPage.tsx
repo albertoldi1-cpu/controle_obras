@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Save } from "lucide-react";
 import { api } from "../api";
 import type { Stage } from "../types";
+import CsvImportBlock from "../components/CsvImportBlock";
 
 type Ctx = { projectId: number };
 
@@ -218,6 +219,37 @@ export default function EntriesPage() {
         >
           Recarregar período
         </button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <CsvImportBlock
+          title="Importar planejado (otimista / pessimista) — CSV"
+          description="UTF-8. Uma linha por etapa e dia. stage_id = coluna id na aba Etapas."
+          modelLines={[
+            "Linha 1: stage_id,day,planned_optimistic,planned_pessimistic",
+            "Linhas 2+: 3,2025-03-20,120,100",
+            `Etapa(s) deste projeto: ${stages.map((s) => `id ${s.id} = ${s.name}`).join(" · ") || "—"}`,
+          ]}
+          onImport={async (file) => {
+            const r = await api.importEntriesCsv(projectId, "planned", file);
+            await loadAll();
+            return r;
+          }}
+        />
+        <CsvImportBlock
+          title="Importar executado — CSV"
+          description="UTF-8. Observação na 4ª coluna (opcional)."
+          modelLines={[
+            "Linha 1: stage_id,day,executed,execution_note",
+            "Linhas 2+: 3,2025-03-20,95,chuva",
+            `Etapa(s): ${stages.map((s) => `id ${s.id} = ${s.name}`).join(" · ") || "—"}`,
+          ]}
+          onImport={async (file) => {
+            const r = await api.importEntriesCsv(projectId, "executed", file);
+            await loadAll();
+            return r;
+          }}
+        />
       </div>
 
       <div className="flex flex-wrap gap-3">

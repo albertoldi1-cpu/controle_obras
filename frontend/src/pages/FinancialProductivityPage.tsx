@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "../api";
 import type { FinancialDailyProduction, FinancialTeam } from "../types";
+import CsvImportBlock from "../components/CsvImportBlock";
 
 type Ctx = { projectId: number };
 
@@ -21,7 +22,9 @@ export default function FinancialProductivityPage() {
   const { projectId } = useOutletContext<Ctx>();
   const [teams, setTeams] = useState<FinancialTeam[]>([]);
   const [rows, setRows] = useState<FinancialDailyProduction[]>([]);
-  const [planIndex, setPlanIndex] = useState<Record<string, number>>({});
+  const [planDetail, setPlanDetail] = useState<
+    Record<string, { target: number; planning: number }>
+  >({});
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -37,9 +40,13 @@ export default function FinancialProductivityPage() {
     ]).then(([t, r, plans]) => {
         setTeams(t);
         setRows(r);
-        const idx: Record<string, number> = {};
-        for (const p of plans) idx[`${p.day}|${p.team_id}`] = p.daily_target_brl;
-        setPlanIndex(idx);
+        const idx: Record<string, { target: number; planning: number }> = {};
+        for (const p of plans)
+          idx[`${p.day}|${p.team_id}`] = {
+            target: p.daily_target_brl,
+            planning: p.daily_planning_brl ?? 0,
+          };
+        setPlanDetail(idx);
       }
     );
   }, [projectId]);
@@ -125,6 +132,21 @@ export default function FinancialProductivityPage() {
 
       {err && <p className="text-sm text-signal-bad">{err}</p>}
 
+      <CsvImportBlock
+        title="Importar produção realizada (CSV)"
+        description="UTF-8. Cabeçalho na linha 1; dados da linha 2 em diante."
+        modelLines={[
+          "Linha 1: day,team_id,produced_value_brl,observation",
+          "Linhas 2+: 2025-03-20,1,4800,Chuva",
+          "observation é opcional. Atualiza se já existir dia+equipe.",
+        ]}
+        onImport={async (file) => {
+          const r = await api.financial.importCsv(projectId, "production", file);
+          await load();
+          return r;
+        }}
+      />
+
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -159,7 +181,22 @@ export default function FinancialProductivityPage() {
                 required
                 className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
                 value={String(form.team_id)}
-                onChange={(e) => setForm((f) => ({ ...f, team_id: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const tid = Number(e.target.value);
+                  const tm = teams.find((t) => t.id === tid);
+                  const def = tm?.default_daily_target_brl;
+                  setForm((f) => ({
+                    ...f,
+                    team_id: tid,
+                    produced_value_brl:
+                      editingId === null &&
+                      def != null &&
+                      Number.isFinite(def) &&
+                      def > 0
+                        ? def
+                        : f.produced_value_brl,
+                  }));
+                }}
               >
                 {teams.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -167,6 +204,28 @@ export default function FinancialProductivityPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+              {(() => {
+                const tm = teams.find((t) => t.id === form.team_id);
+                const pl = planDetail[`${form.day}|${form.team_id}`];
+                return (
+                  <>
+                    <p>
+                      Meta diária (cadastro):{" "}
+                      {tm?.default_daily_target_brl != null && tm.default_daily_target_brl > 0
+                        ? brl(tm.default_daily_target_brl)
+                        : "—"}
+                    </p>
+                    {pl && (
+                      <p className="mt-1">
+                        Planejado neste dia: meta {brl(pl.target)}
+                        {pl.planning > 0 ? ` · planej. ${brl(pl.planning)}` : ""}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             <div>
               <label className="mb-1 block text-xs text-slate-500">Valor produzido (R$)</label>
@@ -225,7 +284,8 @@ export default function FinancialProductivityPage() {
                 <th className="px-6 py-3">Dia</th>
                 <th className="px-6 py-3">Equipe</th>
                 <th className="px-6 py-3">Tipo</th>
-                <th className="px-6 py-3">Meta da equipe</th>
+                <th className="px-6 py-3">Meta equipe</th>
+                <th className="px-6 py-3">Planej. diário</th>
                 <th className="px-6 py-3">Produzido</th>
                 <th className="px-6 py-3">Obs.</th>
                 <th className="w-28 px-6 py-3" />
@@ -234,7 +294,7 @@ export default function FinancialProductivityPage() {
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                     Nenhum lançamento. Use «Novo lançamento» ou o painel.
                   </td>
                 </tr>
@@ -246,7 +306,12 @@ export default function FinancialProductivityPage() {
                     </td>
                     <td className="px-6 py-3 text-white">{p.team.name}</td>
                     <td className="px-6 py-3 text-slate-400">{p.team.team_type || "—"}</td>
-                    <td className="px-6 py-3 text-slate-300">{brl(planIndex[`${p.day}|${p.team_id}`] ?? 0)}</td>
+                    <td className="px-6 py-3 text-slate-300">
+                      {brl(planDetail[`${p.day}|${p.team_id}`]?.target ?? 0)}
+                    </td>
+                    <td className="px-6 py-3 text-slate-400">
+                      {brl(planDetail[`${p.day}|${p.team_id}`]?.planning ?? 0)}
+                    </td>
                     <td className="px-6 py-3 font-medium text-emerald-300">{brl(p.produced_value_brl)}</td>
                     <td className="max-w-xs px-6 py-3 text-slate-400">
                       {p.observation ? <span className="line-clamp-2">{p.observation}</span> : "—"}

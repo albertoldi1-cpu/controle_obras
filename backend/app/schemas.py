@@ -253,6 +253,7 @@ class FinancialTeamBriefOut(BaseModel):
     team_type: str
     uen: str
     encarregado: str
+    default_daily_target_brl: Optional[float] = None
 
 
 class FinancialPanelDashboardOut(BaseModel):
@@ -270,10 +271,8 @@ class FinancialPhysicalComparisonPoint(BaseModel):
     day: date
     physical_executed_pct: float
     produced_value_brl: float
-    optimistic_productive_forecast_brl: float
-    pessimistic_productive_forecast_brl: float
     cumulative_produced_value_brl: float
-    daily_obra_reference_brl: float
+    billing_forecast_daily_brl: float
 
 
 class FinancialPhysicalComparisonSummary(BaseModel):
@@ -292,11 +291,17 @@ class FinancialPhysicalComparisonOut(BaseModel):
     summary: FinancialPhysicalComparisonSummary
 
 
+class CsvImportOut(BaseModel):
+    upserted: int
+    errors: List[str] = Field(default_factory=list)
+
+
 class FinancialTeamIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
     team_type: str = Field("", max_length=128)
     uen: str = Field("", max_length=128)
     encarregado: str = Field("", max_length=256)
+    default_daily_target_brl: Optional[float] = Field(None, ge=0, le=1e15)
 
 
 class FinancialTeamOut(BaseModel):
@@ -308,6 +313,7 @@ class FinancialTeamOut(BaseModel):
     team_type: str
     uen: str
     encarregado: str
+    default_daily_target_brl: Optional[float] = None
     created_at: datetime
 
 
@@ -315,6 +321,7 @@ class FinancialDailyPlanIn(BaseModel):
     day: date
     team_id: int = Field(..., ge=1)
     daily_target_brl: float = Field(0.0, ge=-1e12, le=1e12)
+    daily_planning_brl: float = Field(0.0, ge=-1e12, le=1e12)
 
 
 class FinancialDailyPlanOut(BaseModel):
@@ -325,6 +332,7 @@ class FinancialDailyPlanOut(BaseModel):
     day: date
     team_id: int
     daily_target_brl: float
+    daily_planning_brl: float
     created_at: datetime
     team: FinancialTeamBriefOut
 

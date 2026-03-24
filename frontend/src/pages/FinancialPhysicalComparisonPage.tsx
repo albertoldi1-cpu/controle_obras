@@ -76,8 +76,8 @@ export default function FinancialPhysicalComparisonPage() {
       <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/[0.06] to-transparent p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Comparativo Físico × Produtivo</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Avanço físico executado (%), valor produzido por dia (soma do realizado / produzido dia) e referência diária da
-          obra (valor total ÷ dias com planejamento financeiro distintos).
+          Avanço físico (%), produzido dia a dia (R$) e previsão de faturamento (valor total da obra ÷ dias com
+          planejamento financeiro).
         </p>
       </div>
 
@@ -128,12 +128,10 @@ export default function FinancialPhysicalComparisonPage() {
           <p className="mt-2 font-display text-2xl font-bold text-indigo-200">
             {hasObra ? brl(summary.obra_total_value_brl) : "—"}
           </p>
-          {!hasObra && (
-            <p className="mt-2 text-xs text-amber-200/90">Cadastre no topo do projeto.</p>
-          )}
+          {!hasObra && <p className="mt-2 text-xs text-amber-200/90">Cadastre no topo da área Financeiro.</p>}
         </div>
         <div className="glass rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-500">Referência diária da obra</p>
+          <p className="text-xs uppercase tracking-wider text-slate-500">Previsão de faturamento (dia)</p>
           <p className="mt-2 font-display text-2xl font-bold text-sky-300">
             {hasObra && hasPlanDays ? brl(summary.daily_obra_reference_brl) : "—"}
           </p>
@@ -147,6 +145,10 @@ export default function FinancialPhysicalComparisonPage() {
 
       <section className="glass rounded-2xl p-6">
         <h2 className="font-display text-xl font-semibold text-white">Evolução diária</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Eixo esquerdo: avanço físico (%). Eixo direito: valores em R$ (produzido no dia e previsão de faturamento
+          diária).
+        </p>
         <div className="mt-5 h-[420px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
@@ -187,7 +189,7 @@ export default function FinancialPhysicalComparisonPage() {
                 yAxisId="right"
                 type="monotone"
                 dataKey="produced_value_brl"
-                name="Produzido (R$ dia)"
+                name="Produzido (dia a dia) (R$)"
                 stroke="#34d399"
                 strokeWidth={2.5}
                 dot={false}
@@ -195,30 +197,10 @@ export default function FinancialPhysicalComparisonPage() {
               <Line
                 yAxisId="right"
                 type="monotone"
-                dataKey="optimistic_productive_forecast_brl"
-                name="Previsão produtiva otimista (R$ dia)"
-                stroke="#22c55e"
-                strokeDasharray="6 4"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="pessimistic_productive_forecast_brl"
-                name="Previsão produtiva pessimista (R$ dia)"
-                stroke="#f59e0b"
-                strokeDasharray="6 4"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="daily_obra_reference_brl"
-                name="Referência diária obra (R$)"
+                dataKey="billing_forecast_daily_brl"
+                name="Previsão de faturamento (R$ dia)"
                 stroke="#38bdf8"
-                strokeDasharray="4 4"
+                strokeDasharray="5 4"
                 strokeWidth={2}
                 dot={false}
                 connectNulls

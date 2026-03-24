@@ -97,25 +97,36 @@ def build_financial_panel_dashboard(
     prods_f = [p for p in prods if _filter_team_id(p.team_id, team_filter)]
 
     by_day_team_meta: dict[date, dict[int, float]] = defaultdict(dict)
+    by_day_team_planning: dict[date, dict[int, float]] = defaultdict(dict)
     by_day_produced: dict[date, float] = defaultdict(float)
     by_day_team_ids: dict[date, set[int]] = defaultdict(set)
 
+    def _planning_brl(row) -> float:
+        v = getattr(row, "daily_planning_brl", None)
+        return float(v) if v is not None else 0.0
+
     for p in plans_f:
-        by_day_team_meta[p.day][p.team_id] = float(p.daily_target_brl)
+        by_day_team_meta[p.day][p.team_id] = float(p.daily_target_brl or 0.0)
+        by_day_team_planning[p.day][p.team_id] = _planning_brl(p)
     for p in prods_f:
         by_day_produced[p.day] += float(p.produced_value_brl)
         if float(p.produced_value_brl) > 0:
             by_day_team_ids[p.day].add(p.team_id)
 
+    def _planned_for_farol(day: date, team_id: int) -> float:
+        pln = by_day_team_planning.get(day, {}).get(team_id, 0.0)
+        if pln > 1e-9:
+            return pln
+        return by_day_team_meta.get(day, {}).get(team_id, 0.0)
+
     by_day_meta_total: dict[date, float] = {}
     all_days = sorted(set(by_day_team_meta.keys()) | set(by_day_produced.keys()))
     for d in all_days:
-        # Meta Total das Equipes:
-        # soma das metas das equipes que efetivamente produziram no dia.
+        # Planejado para farol: planejamento diário (R$) se informado; senão meta da equipe.
         produced_teams = by_day_team_ids.get(d, set())
         day_meta = 0.0
         if produced_teams:
-            day_meta = sum(by_day_team_meta.get(d, {}).get(tid, 0.0) for tid in produced_teams)
+            day_meta = sum(_planned_for_farol(d, tid) for tid in produced_teams)
         by_day_meta_total[d] = day_meta
 
     cum_p = 0.0
@@ -249,7 +260,7 @@ def financial_excel_bytes(
 
     # Planejamento
     ws1 = wb.create_sheet("Metas Equipes")
-    ws1.append(["Data", "Equipe", "Tipo", "Meta da equipe (R$)"])
+    ws1.append(["Data", "Equipe", "Tipo", "Meta da equipe (R$)", "Planejamento diário (R$)"])
     q = (
         select(FinancialDailyPlan)
         .where(FinancialDailyPlan.project_id == project.id)
@@ -265,19 +276,32 @@ def financial_excel_bytes(
         team = db.get(FinancialTeam, row.team_id)
         nm = team.name if team else "—"
         tt = team.team_type if team else "—"
-        ws1.append([row.day.isoformat(), nm, tt, row.daily_target_brl])
+        pln = float(getattr(row, "daily_planning_brl", 0.0) or 0.0)
+        ws1.append([row.day.isoformat(), nm, tt, row.daily_target_brl, pln])
 
     # Lançamentos produtividade
     ws2 = wb.create_sheet("Lançamentos")
-    ws2.append(["Data", "Equipe", "Tipo", "Meta da equipe (R$)", "Valor produzido (R$)", "Observações"])
-    plans_map: dict[tuple[date, int], float] = {}
+    ws2.append(
+        [
+            "Data",
+            "Equipe",
+            "Tipo",
+            "Meta da equipe (R$)",
+            "Planejamento diário (R$)",
+            "Valor produzido (R$)",
+            "Observações",
+        ]
+    )
+    plans_target: dict[tuple[date, int], float] = {}
+    plans_planning: dict[tuple[date, int], float] = {}
     q_plan_map = select(FinancialDailyPlan).where(FinancialDailyPlan.project_id == project.id)
     if date_from:
         q_plan_map = q_plan_map.where(FinancialDailyPlan.day >= date_from)
     if date_to:
         q_plan_map = q_plan_map.where(FinancialDailyPlan.day <= date_to)
     for p in db.scalars(q_plan_map).all():
-        plans_map[(p.day, p.team_id)] = float(p.daily_target_brl)
+        plans_target[(p.day, p.team_id)] = float(p.daily_target_brl or 0.0)
+        plans_planning[(p.day, p.team_id)] = float(getattr(p, "daily_planning_brl", 0.0) or 0.0)
     q2 = (
         select(FinancialDailyProduction)
         .where(FinancialDailyProduction.project_id == project.id)
@@ -293,12 +317,14 @@ def financial_excel_bytes(
         team = db.get(FinancialTeam, row.team_id)
         nm = team.name if team else "—"
         tt = team.team_type if team else "—"
+        key = (row.day, row.team_id)
         ws2.append(
             [
                 row.day.isoformat(),
                 nm,
                 tt,
-                plans_map.get((row.day, row.team_id), 0.0),
+                plans_target.get(key, 0.0),
+                plans_planning.get(key, 0.0),
                 row.produced_value_brl,
                 row.observation or "",
             ]
@@ -325,8 +351,6 @@ def build_financial_physical_comparison(
 ) -> FinancialPhysicalComparisonOut:
     stages = list(project.stages)
     phys_by_day_pct: dict[date, float] = {}
-    phys_opt_by_day_pct: dict[date, float] = {}
-    phys_pes_by_day_pct: dict[date, float] = {}
     all_phys_days: set[date] = set()
     for st in stages:
         for e in st.entries:
@@ -337,28 +361,18 @@ def build_financial_physical_comparison(
     sorted_phys_days = sorted(all_phys_days)
     for d in sorted_phys_days:
         acc = 0.0
-        acc_opt = 0.0
-        acc_pes = 0.0
         for st in stages:
             q = float(st.total_quantity or 0.0)
             if q <= 0:
                 continue
             executed = 0.0
-            planned_opt = 0.0
-            planned_pes = 0.0
             for e in st.entries:
                 if (date_from and e.day < date_from) or (date_to and e.day > date_to):
                     continue
                 if e.day <= d:
                     executed += float(e.executed or 0.0)
-                    planned_opt += float(e.planned_optimistic or 0.0)
-                    planned_pes += float(e.planned_pessimistic or 0.0)
             acc += float(st.weight) * min(executed / q, 1.0)
-            acc_opt += float(st.weight) * min(planned_opt / q, 1.0)
-            acc_pes += float(st.weight) * min(planned_pes / q, 1.0)
         phys_by_day_pct[d] = round(acc * 100, 3)
-        phys_opt_by_day_pct[d] = round(acc_opt * 100, 3)
-        phys_pes_by_day_pct[d] = round(acc_pes * 100, 3)
 
     q_prod_rows = select(FinancialDailyProduction).where(FinancialDailyProduction.project_id == project.id)
     if date_from:
@@ -387,35 +401,18 @@ def build_financial_physical_comparison(
     points: List[FinancialPhysicalComparisonPoint] = []
     cum_prod = 0.0
     last_phys = 0.0
-    last_phys_opt = 0.0
-    last_phys_pes = 0.0
-    ratio_brl_per_physical_point = 0.0
-    if all_days:
-        final_phys = phys_by_day_pct.get(all_days[-1], 0.0)
-        if final_phys > 1e-9:
-            ratio_brl_per_physical_point = sum(produced_by_day.values()) / final_phys
     for d in all_days:
         if d in phys_by_day_pct:
             last_phys = phys_by_day_pct[d]
-        if d in phys_opt_by_day_pct:
-            last_phys_opt = phys_opt_by_day_pct[d]
-        if d in phys_pes_by_day_pct:
-            last_phys_pes = phys_pes_by_day_pct[d]
         day_prod = produced_by_day.get(d, 0.0)
         cum_prod += day_prod
-        forecast_opt_cum = last_phys_opt * ratio_brl_per_physical_point
-        forecast_pes_cum = last_phys_pes * ratio_brl_per_physical_point
-        prev_opt = points[-1].optimistic_productive_forecast_brl if points else 0.0
-        prev_pes = points[-1].pessimistic_productive_forecast_brl if points else 0.0
         points.append(
             FinancialPhysicalComparisonPoint(
                 day=d,
                 physical_executed_pct=last_phys,
                 produced_value_brl=day_prod,
-                optimistic_productive_forecast_brl=max(forecast_opt_cum - prev_opt, 0.0),
-                pessimistic_productive_forecast_brl=max(forecast_pes_cum - prev_pes, 0.0),
                 cumulative_produced_value_brl=cum_prod,
-                daily_obra_reference_brl=daily_obra_ref,
+                billing_forecast_daily_brl=daily_obra_ref,
             )
         )
 
@@ -457,17 +454,15 @@ def financial_physical_comparison_excel_bytes(
     ws.append(["Total produzido (R$)", comp.summary.total_produced_brl])
     ws.append(["Valor total da obra (R$)", comp.summary.obra_total_value_brl])
     ws.append(["Dias com planejamento financeiro (distintos)", comp.summary.planned_financial_days_count])
-    ws.append(["Referência diária obra (R$)", comp.summary.daily_obra_reference_brl])
+    ws.append(["Previsão de faturamento diária (R$)", comp.summary.daily_obra_reference_brl])
     ws.append([])
     ws.append(
         [
             "Data",
             "Executado físico (%)",
             "Produzido (R$ dia)",
-            "Previsão produtiva otimista (R$ dia)",
-            "Previsão produtiva pessimista (R$ dia)",
             "Produzido acumulado (R$)",
-            "Referência diária obra (R$)",
+            "Previsão de faturamento (R$ dia)",
         ]
     )
     for p in comp.points:
@@ -476,10 +471,8 @@ def financial_physical_comparison_excel_bytes(
                 p.day.isoformat(),
                 p.physical_executed_pct,
                 p.produced_value_brl,
-                p.optimistic_productive_forecast_brl,
-                p.pessimistic_productive_forecast_brl,
                 p.cumulative_produced_value_brl,
-                p.daily_obra_reference_brl,
+                p.billing_forecast_daily_brl,
             ]
         )
     for c in ws[1]:

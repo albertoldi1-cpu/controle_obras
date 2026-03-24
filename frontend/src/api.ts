@@ -4,6 +4,7 @@ import type {
   FinancialDailyPlan,
   FinancialDailyProduction,
   FinancialEntry,
+  CsvImportResult,
   FinancialPhysicalComparison,
   FinancialPanelDashboard,
   FinancialTeam,
@@ -39,6 +40,26 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (r.status === 204) return undefined as T;
   return r.json() as Promise<T>;
+}
+
+async function postCsvImport(path: string, file: File): Promise<CsvImportResult> {
+  const t = localStorage.getItem("obra_token");
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: t ? { Authorization: `Bearer ${t}` } : {},
+    body: fd,
+  });
+  if (r.status === 401) {
+    localStorage.removeItem("obra_token");
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+  if (!r.ok) {
+    const tx = await r.text();
+    throw new Error(tx || r.statusText);
+  }
+  return r.json() as Promise<CsvImportResult>;
 }
 
 function financialQueryString(q?: { date_from?: string; date_to?: string; team_id?: number }) {
@@ -140,6 +161,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ entries }),
     }),
+  importEntriesCsv: (projectId: number, kind: "planned" | "executed", file: File) =>
+    postCsvImport(`/api/projects/${projectId}/entries/import.csv?kind=${kind}`, file),
   dashboard: (projectId: number) => req<Dashboard>(`/api/projects/${projectId}/dashboard`),
   financial: {
     panel: (projectId: number, q?: { date_from?: string; date_to?: string; team_id?: number }) =>
@@ -186,7 +209,9 @@ export const api = {
       req<FinancialTeam[]>(`/api/projects/${projectId}/financial/teams`),
     createTeam: (
       projectId: number,
-      body: Pick<FinancialTeam, "name" | "team_type" | "uen" | "encarregado">
+      body: Pick<FinancialTeam, "name" | "team_type" | "uen" | "encarregado"> & {
+        default_daily_target_brl?: number | null;
+      }
     ) =>
       req<FinancialTeam>(`/api/projects/${projectId}/financial/teams`, {
         method: "POST",
@@ -195,7 +220,9 @@ export const api = {
     updateTeam: (
       projectId: number,
       teamId: number,
-      body: Pick<FinancialTeam, "name" | "team_type" | "uen" | "encarregado">
+      body: Pick<FinancialTeam, "name" | "team_type" | "uen" | "encarregado"> & {
+        default_daily_target_brl?: number | null;
+      }
     ) =>
       req<FinancialTeam>(`/api/projects/${projectId}/financial/teams/${teamId}`, {
         method: "PUT",
@@ -207,7 +234,7 @@ export const api = {
       req<FinancialDailyPlan[]>(`/api/projects/${projectId}/financial/plans`),
     createPlan: (
       projectId: number,
-      body: Pick<FinancialDailyPlan, "day" | "team_id" | "daily_target_brl">
+      body: Pick<FinancialDailyPlan, "day" | "team_id" | "daily_target_brl" | "daily_planning_brl">
     ) =>
       req<FinancialDailyPlan>(`/api/projects/${projectId}/financial/plans`, {
         method: "POST",
@@ -216,7 +243,7 @@ export const api = {
     updatePlan: (
       projectId: number,
       planId: number,
-      body: Pick<FinancialDailyPlan, "day" | "team_id" | "daily_target_brl">
+      body: Pick<FinancialDailyPlan, "day" | "team_id" | "daily_target_brl" | "daily_planning_brl">
     ) =>
       req<FinancialDailyPlan>(`/api/projects/${projectId}/financial/plans/${planId}`, {
         method: "PUT",
@@ -245,6 +272,8 @@ export const api = {
       }),
     deleteProduction: (projectId: number, prodId: number) =>
       req(`/api/projects/${projectId}/financial/production/${prodId}`, { method: "DELETE" }),
+    importCsv: (projectId: number, kind: "plans" | "production", file: File) =>
+      postCsvImport(`/api/projects/${projectId}/financial/import.csv?kind=${kind}`, file),
     listLegacyEntries: (projectId: number) =>
       req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
     createLegacyEntry: (

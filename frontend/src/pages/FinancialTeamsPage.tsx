@@ -11,6 +11,7 @@ const emptyForm = () => ({
   team_type: "",
   uen: "",
   encarregado: "",
+  default_daily_target_brl: "" as number | "",
 });
 
 export default function FinancialTeamsPage() {
@@ -48,6 +49,8 @@ export default function FinancialTeamsPage() {
       team_type: t.team_type,
       uen: t.uen,
       encarregado: t.encarregado,
+      default_daily_target_brl:
+        t.default_daily_target_brl != null && t.default_daily_target_brl > 0 ? t.default_daily_target_brl : "",
     });
     setShowForm(true);
   }
@@ -57,11 +60,14 @@ export default function FinancialTeamsPage() {
     setBusy(true);
     setErr(null);
     try {
+      const def =
+        form.default_daily_target_brl === "" ? null : Number(form.default_daily_target_brl);
       const body = {
         name: form.name.trim(),
         team_type: form.team_type.trim(),
         uen: form.uen.trim(),
         encarregado: form.encarregado.trim(),
+        default_daily_target_brl: def != null && Number.isFinite(def) && def >= 0 ? def : null,
       };
       if (editingId !== null) {
         await api.financial.updateTeam(projectId, editingId, body);
@@ -95,8 +101,8 @@ export default function FinancialTeamsPage() {
       <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] to-transparent p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Equipes</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Cadastro de equipes: nome, tipo de equipe, UEN e encarregado. Os lançamentos de planejado e realizado referenciam
-          estas equipes.
+          Cadastro de equipes: nome, tipo, UEN, encarregado e meta diária padrão (R$). Essa meta é sugerida ao lançar
+          planejamento e produção no painel.
         </p>
       </div>
 
@@ -154,6 +160,23 @@ export default function FinancialTeamsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, encarregado: e.target.value }))}
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs text-slate-500">Meta diária padrão (R$)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                value={form.default_daily_target_brl === "" ? "" : form.default_daily_target_brl}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    default_daily_target_brl: e.target.value === "" ? "" : Number(e.target.value),
+                  }))
+                }
+                placeholder="Opcional — preenchida ao escolher a equipe no painel"
+              />
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <button
@@ -189,13 +212,14 @@ export default function FinancialTeamsPage() {
                 <th className="px-6 py-3">Tipo</th>
                 <th className="px-6 py-3">UEN</th>
                 <th className="px-6 py-3">Encarregado</th>
+                <th className="px-6 py-3">Meta diária</th>
                 <th className="w-28 px-6 py-3" />
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                     Nenhuma equipe. Use «Nova equipe».
                   </td>
                 </tr>
@@ -206,6 +230,14 @@ export default function FinancialTeamsPage() {
                     <td className="px-6 py-3 text-slate-400">{t.team_type || "—"}</td>
                     <td className="px-6 py-3 text-slate-400">{t.uen || "—"}</td>
                     <td className="px-6 py-3 text-slate-400">{t.encarregado || "—"}</td>
+                    <td className="px-6 py-3 text-slate-300">
+                      {t.default_daily_target_brl != null && t.default_daily_target_brl > 0
+                        ? t.default_daily_target_brl.toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })
+                        : "—"}
+                    </td>
                     <td className="px-6 py-3">
                       <div className="flex gap-1">
                         <button

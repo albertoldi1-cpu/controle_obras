@@ -118,6 +118,7 @@ export interface FinancialTeamBrief {
   team_type: string;
   uen: string;
   encarregado: string;
+  default_daily_target_brl?: number | null;
 }
 
 export interface FinancialTeam extends FinancialTeamBrief {
@@ -165,10 +166,8 @@ export interface FinancialPhysicalComparisonPoint {
   day: string;
   physical_executed_pct: number;
   produced_value_brl: number;
-  optimistic_productive_forecast_brl: number;
-  pessimistic_productive_forecast_brl: number;
   cumulative_produced_value_brl: number;
-  daily_obra_reference_brl: number;
+  billing_forecast_daily_brl: number;
 }
 
 export interface FinancialPhysicalComparisonSummary {
@@ -187,12 +186,18 @@ export interface FinancialPhysicalComparison {
   summary: FinancialPhysicalComparisonSummary;
 }
 
+export interface CsvImportResult {
+  upserted: number;
+  errors: string[];
+}
+
 export interface FinancialDailyPlan {
   id: number;
   project_id: number;
   day: string;
   team_id: number;
   daily_target_brl: number;
+  daily_planning_brl: number;
   created_at: string;
   team: FinancialTeamBrief;
 }

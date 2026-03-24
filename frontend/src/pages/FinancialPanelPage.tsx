@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { Download, Filter } from "lucide-react";
 import { api } from "../api";
-import type { FinancialPanelDashboard } from "../types";
+import type { FinancialDailyPlan, FinancialPanelDashboard } from "../types";
 import FinancialPlannedProducedChart from "../components/FinancialPlannedProducedChart";
 import FarolDot from "../components/FarolDot";
 
@@ -27,10 +27,12 @@ export default function FinancialPanelPage() {
   const [planDay, setPlanDay] = useState(today);
   const [planTeamId, setPlanTeamId] = useState<number | "">("");
   const [planValue, setPlanValue] = useState(0);
+  const [planPlanningBrl, setPlanPlanningBrl] = useState(0);
   const [prodDay, setProdDay] = useState(today);
   const [prodTeamId, setProdTeamId] = useState<number | "">("");
   const [prodValue, setProdValue] = useState(0);
   const [prodObs, setProdObs] = useState("");
+  const [planByKey, setPlanByKey] = useState<Record<string, Pick<FinancialDailyPlan, "daily_target_brl" | "daily_planning_brl">>>({});
 
   const q = useCallback(
     () => ({
@@ -43,7 +45,19 @@ export default function FinancialPanelPage() {
 
   const reload = useCallback(() => {
     setErr(null);
-    return api.financial.panel(projectId, q()).then(setData);
+    return Promise.all([api.financial.panel(projectId, q()), api.financial.listPlans(projectId)]).then(
+      ([dash, plans]) => {
+        setData(dash);
+        const m: Record<string, Pick<FinancialDailyPlan, "daily_target_brl" | "daily_planning_brl">> = {};
+        for (const p of plans) {
+          m[`${p.day}|${p.team_id}`] = {
+            daily_target_brl: p.daily_target_brl,
+            daily_planning_brl: p.daily_planning_brl ?? 0,
+          };
+        }
+        setPlanByKey(m);
+      }
+    );
   }, [projectId, q]);
 
   useEffect(() => {
@@ -91,8 +105,10 @@ export default function FinancialPanelPage() {
         day: planDay,
         team_id: planTeamId,
         daily_target_brl: planValue,
+        daily_planning_brl: planPlanningBrl,
       });
       setPlanValue(0);
+      setPlanPlanningBrl(0);
       await reload();
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Erro ao salvar planejado");
@@ -135,6 +151,8 @@ export default function FinancialPanelPage() {
 
   const dev = data.summary.deviation_pct;
   const teams = data.teams;
+  const prodPlan = prodTeamId !== "" ? planByKey[`${prodDay}|${prodTeamId}`] : undefined;
+  const prodTeam = prodTeamId !== "" ? teams.find((t) => t.id === prodTeamId) : undefined;
 
   return (
     <div className="space-y-8">
@@ -165,8 +183,10 @@ export default function FinancialPanelPage() {
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={submitPlanned} className="glass rounded-2xl border border-slate-500/20 p-5">
-          <h2 className="font-display text-lg font-semibold text-slate-200">Meta da equipe (dia)</h2>
-          <p className="mt-1 text-xs text-slate-500">Meta financeira (R$) da equipe na data.</p>
+            <h2 className="font-display text-lg font-semibold text-slate-200">Planejado (dia)</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Meta da equipe, planejamento diário (R$) e depois o produzido no formulário ao lado.
+            </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs text-slate-500">Data</label>
@@ -184,7 +204,14 @@ export default function FinancialPanelPage() {
                   required
                   className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
                   value={planTeamId === "" ? "" : String(planTeamId)}
-                  onChange={(e) => setPlanTeamId(e.target.value ? Number(e.target.value) : "")}
+                  onChange={(e) => {
+                    const id = e.target.value ? Number(e.target.value) : "";
+                    setPlanTeamId(id);
+                    if (id === "") return;
+                    const tm = teams.find((t) => t.id === id);
+                    const def = tm?.default_daily_target_brl;
+                    if (def != null && Number.isFinite(def) && def > 0) setPlanValue(def);
+                  }}
                 >
                   {teams.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -194,7 +221,7 @@ export default function FinancialPanelPage() {
                   ))}
                 </select>
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <label className="mb-1 block text-xs text-slate-500">Meta da equipe (R$)</label>
                 <input
                   type="number"
@@ -206,13 +233,24 @@ export default function FinancialPanelPage() {
                   onChange={(e) => setPlanValue(Number(e.target.value))}
                 />
               </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Planejamento diário (R$)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+                  value={planPlanningBrl}
+                  onChange={(e) => setPlanPlanningBrl(Number(e.target.value))}
+                />
+              </div>
             </div>
             <button
               type="submit"
               disabled={busyPlan}
               className="mt-4 rounded-xl bg-slate-600 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-500 disabled:opacity-50"
             >
-              {busyPlan ? "Salvando…" : "Salvar meta"}
+              {busyPlan ? "Salvando…" : "Salvar planejado"}
             </button>
           </form>
 
@@ -236,7 +274,14 @@ export default function FinancialPanelPage() {
                   required
                   className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
                   value={prodTeamId === "" ? "" : String(prodTeamId)}
-                  onChange={(e) => setProdTeamId(e.target.value ? Number(e.target.value) : "")}
+                  onChange={(e) => {
+                    const id = e.target.value ? Number(e.target.value) : "";
+                    setProdTeamId(id);
+                    if (id === "") return;
+                    const tm = teams.find((t) => t.id === id);
+                    const def = tm?.default_daily_target_brl;
+                    if (def != null && Number.isFinite(def) && def > 0) setProdValue(def);
+                  }}
                 >
                   {teams.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -246,8 +291,22 @@ export default function FinancialPanelPage() {
                   ))}
                 </select>
               </div>
+              <div className="sm:col-span-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+                <p>
+                  <span className="text-slate-500">Meta diária (cadastro da equipe):</span>{" "}
+                  {prodTeam?.default_daily_target_brl != null && prodTeam.default_daily_target_brl > 0
+                    ? brl(prodTeam.default_daily_target_brl)
+                    : "—"}
+                </p>
+                {prodPlan && (
+                  <p className="mt-1">
+                    <span className="text-slate-500">Planejado neste dia:</span> meta {brl(prodPlan.daily_target_brl)}
+                    {prodPlan.daily_planning_brl > 0 ? ` · planej. ${brl(prodPlan.daily_planning_brl)}` : ""}
+                  </p>
+                )}
+              </div>
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-slate-500">Valor produzido (R$)</label>
+                <label className="mb-1 block text-xs text-slate-500">Produzido (R$)</label>
                 <input
                   type="number"
                   min={0}
@@ -374,7 +433,9 @@ export default function FinancialPanelPage() {
         <div className="border-b border-white/10 px-6 py-4">
           <h2 className="font-display text-xl font-semibold text-white">Farol por dia</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Verde: produzido ≥ meta total · Amarelo: ≥ 85% da meta total · Vermelho: abaixo de 85%
+            Planejado do dia: soma do <strong className="text-slate-400">planejamento diário</strong> (R$) das
+            equipes que produziram, quando informado; senão usa a <strong className="text-slate-400">meta da equipe</strong>.
+            Verde: produzido ≥ planejado · Amarelo: ≥ 85% · Vermelho: abaixo de 85%.
           </p>
         </div>
         <div className="overflow-x-auto">

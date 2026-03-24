@@ -135,6 +135,8 @@ class FinancialTeam(Base):
     team_type: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     uen: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     encarregado: Mapped[str] = mapped_column(String(256), default="", nullable=False)
+    # Meta diária padrão (R$) — sugerida ao lançar planejamento / produção por equipe.
+    default_daily_target_brl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     project: Mapped["Project"] = relationship("Project", back_populates="financial_teams")
@@ -156,6 +158,8 @@ class FinancialDailyPlan(Base):
     day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     team_id: Mapped[int] = mapped_column(ForeignKey("financial_teams.id", ondelete="CASCADE"), index=True)
     daily_target_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # Planejamento diário (R$) — além da meta da equipe; usado no farol quando informado.
+    daily_planning_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     project: Mapped["Project"] = relationship("Project", back_populates="financial_daily_plans")

@@ -133,6 +133,7 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
                 team_type=row.get("team_type", ""),
                 uen=row.get("uen", ""),
                 encarregado=row.get("encarregado", ""),
+                default_daily_target_brl=row.get("default_daily_target_brl"),
             )
         )
 
@@ -144,6 +145,7 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
                 day=row["day"],
                 team_id=row["team_id"],
                 daily_target_brl=row.get("daily_target_brl", 0.0),
+                daily_planning_brl=row.get("daily_planning_brl", 0.0),
             )
         )
 

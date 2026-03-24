@@ -2,9 +2,9 @@ import os
 from datetime import date
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +31,7 @@ from app.schemas import (
     BackupEmailOut,
     BulkExecutedBody,
     BulkPlannedBody,
+    CsvImportOut,
     DailyEntryIn,
     DailyEntryOut,
     DashboardOut,
@@ -54,6 +55,12 @@ from app.schemas import (
     TokenOut,
     UserCreateByMaster,
     UserOut,
+)
+from app.services.csv_import import (
+    import_entries_executed_csv,
+    import_entries_planned_csv,
+    import_financial_plans_csv,
+    import_financial_production_csv,
 )
 from app.services.dashboard import build_dashboard
 from app.services.financial import (
@@ -477,6 +484,24 @@ def bulk_executed(
     return {"upserted": count}
 
 
+@app.post("/api/projects/{project_id}/entries/import.csv", response_model=CsvImportOut)
+async def import_project_entries_csv(
+    project_id: int,
+    kind: Literal["planned", "executed"],
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    raw = (await file.read()).decode("utf-8-sig", errors="replace")
+    if kind == "planned":
+        n, errors = import_entries_planned_csv(db, project_id, raw)
+    else:
+        n, errors = import_entries_executed_csv(db, project_id, raw)
+    return CsvImportOut(upserted=n, errors=errors)
+
+
 # --- Painel financeiro (avanço produtivo: planejado × produzido) ---
 
 
@@ -597,6 +622,7 @@ def create_financial_team(
         team_type=(body.team_type or "").strip(),
         uen=(body.uen or "").strip(),
         encarregado=(body.encarregado or "").strip(),
+        default_daily_target_brl=body.default_daily_target_brl,
     )
     db.add(row)
     db.commit()
@@ -617,6 +643,7 @@ def update_financial_team(
     row.team_type = (body.team_type or "").strip()
     row.uen = (body.uen or "").strip()
     row.encarregado = (body.encarregado or "").strip()
+    row.default_daily_target_brl = body.default_daily_target_brl
     db.commit()
     db.refresh(row)
     return row
@@ -672,6 +699,7 @@ def create_financial_plan(
         day=body.day,
         team_id=body.team_id,
         daily_target_brl=body.daily_target_brl,
+        daily_planning_brl=body.daily_planning_brl,
     )
     db.add(row)
     db.commit()
@@ -708,6 +736,7 @@ def update_financial_plan(
     row.day = body.day
     row.team_id = body.team_id
     row.daily_target_brl = body.daily_target_brl
+    row.daily_planning_brl = body.daily_planning_brl
     db.commit()
     db.refresh(row)
     return db.scalars(
@@ -715,6 +744,24 @@ def update_financial_plan(
         .options(selectinload(FinancialDailyPlan.team))
         .where(FinancialDailyPlan.id == row.id)
     ).first()
+
+
+@app.post("/api/projects/{project_id}/financial/import.csv", response_model=CsvImportOut)
+async def import_financial_csv(
+    project_id: int,
+    kind: Literal["plans", "production"],
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    raw = (await file.read()).decode("utf-8-sig", errors="replace")
+    if kind == "plans":
+        n, errors = import_financial_plans_csv(db, project_id, raw)
+    else:
+        n, errors = import_financial_production_csv(db, project_id, raw)
+    return CsvImportOut(upserted=n, errors=errors)
 
 
 @app.delete("/api/projects/{project_id}/financial/plans/{plan_id}")
