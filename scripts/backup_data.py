@@ -10,10 +10,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 
 from app.backup_restore import save_snapshot_file  # noqa: E402
-from app.database import SessionLocal  # noqa: E402
+from app.database import SessionLocal, init_db  # noqa: E402
 
 
 def main() -> int:
+    init_db()
     out_dir = ROOT / "backups"
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
     out_path = out_dir / f"obra-backup-{stamp}.json.gz"

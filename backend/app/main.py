@@ -977,7 +977,7 @@ def get_dashboard(project_id: int, db: Session = Depends(get_db), _: User = Depe
     )
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
-    data = build_dashboard(p)
+    data = build_dashboard(db, p)
     return DashboardOut.model_validate(data)
 
 

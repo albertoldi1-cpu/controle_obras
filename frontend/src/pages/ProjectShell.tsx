@@ -10,7 +10,7 @@ const tabs = [
   { to: "painel", label: "Avanço físico", icon: Gauge, end: true },
   { to: "etapas", label: "Etapas", icon: Layers, end: true },
   { to: "lancamentos", label: "Lançamentos", icon: ClipboardList, end: true },
-  { to: "financeiro", label: "Financeiro", icon: Banknote, end: false },
+  { to: "financeiro", label: "Avanço Financeiro", icon: Banknote, end: false },
 ] as const;
 
 export default function ProjectShell() {

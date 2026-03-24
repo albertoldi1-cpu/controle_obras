@@ -4,7 +4,20 @@ from collections import defaultdict
 from datetime import date
 from typing import Dict, List, Optional, Set, Tuple
 
-from app.models import Project
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models import DailyEntry, Project, Stage
+
+
+def _nf(v) -> float:
+    """Coalesce None / valores inválidos para float seguro."""
+    if v is None:
+        return 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _entries_by_stage(stages: list) -> Dict[int, Dict[date, Tuple[float, float, float]]]:
@@ -12,7 +25,11 @@ def _entries_by_stage(stages: list) -> Dict[int, Dict[date, Tuple[float, float, 
     out: Dict[int, Dict[date, Tuple[float, float, float]]] = defaultdict(dict)
     for st in stages:
         for e in st.entries:
-            out[st.id][e.day] = (e.planned_optimistic, e.planned_pessimistic, e.executed)
+            out[st.id][e.day] = (
+                _nf(e.planned_optimistic),
+                _nf(e.planned_pessimistic),
+                _nf(e.executed),
+            )
     return out
 
 
@@ -29,7 +46,7 @@ def _last_execution_day(stages: list) -> Optional[date]:
     last: Optional[date] = None
     for st in stages:
         for e in st.entries:
-            if e.executed and e.executed > 0:
+            if _nf(e.executed) > 0:
                 last = max(last, e.day) if last else e.day
     return last
 
@@ -54,12 +71,22 @@ def _stage_farol(p_opt: float, p_pes: float, p_real: float) -> str:
     return "red"
 
 
-def _stage_planning_totals(stage_id: int, by_stage: Dict[int, Dict[date, Tuple[float, float, float]]]) -> Tuple[float, float]:
-    """Soma de todos os planejamentos diários da etapa (otimista e pessimista)."""
-    ed = by_stage.get(stage_id, {})
-    sum_o = sum(v[0] for v in ed.values())
-    sum_p = sum(v[1] for v in ed.values())
-    return float(sum_o), float(sum_p)
+def _planning_sums_by_stage(db: Session, project_id: int) -> Dict[int, Tuple[float, float]]:
+    """Soma SQL de planned_* por etapa (fonte única na base, robusto a NULL)."""
+    rows = db.execute(
+        select(
+            DailyEntry.stage_id,
+            func.coalesce(func.sum(DailyEntry.planned_optimistic), 0.0),
+            func.coalesce(func.sum(DailyEntry.planned_pessimistic), 0.0),
+        )
+        .join(Stage, Stage.id == DailyEntry.stage_id)
+        .where(Stage.project_id == project_id)
+        .group_by(DailyEntry.stage_id)
+    ).all()
+    out: Dict[int, Tuple[float, float]] = {}
+    for sid, sum_o, sum_p in rows:
+        out[int(sid)] = (_nf(sum_o), _nf(sum_p))
+    return out
 
 
 def _stage_planning_farol(total_q: float, sum_o: float, sum_p: float) -> str:
@@ -214,13 +241,14 @@ def compute_trend(stages: list, days: List[date], series_e: List[float]) -> Tupl
     return " ".join(label_parts), f"{rhythm} {adv}"
 
 
-def build_dashboard(project: Project) -> dict:
+def build_dashboard(db: Session, project: Project) -> dict:
     stages = list(project.stages)
     ref = _reference_date(stages)
     last_ex = _last_execution_day(stages)
     days, pct_o, pct_p, pct_e = _weighted_series(stages)
 
     by_stage = _entries_by_stage(stages)
+    planning_sums = _planning_sums_by_stage(db, project.id)
 
     stage_rows: List[dict] = []
     for st in sorted(stages, key=lambda s: (s.sort_order, s.id)):
@@ -235,7 +263,7 @@ def build_dashboard(project: Project) -> dict:
         pct_ox = p_opt * 100
         pct_px = p_pes * 100
         tq = float(st.total_quantity)
-        sum_plan_o, sum_plan_p = _stage_planning_totals(st.id, by_stage)
+        sum_plan_o, sum_plan_p = planning_sums.get(st.id, (0.0, 0.0))
         pending_o = max(tq - sum_plan_o, 0.0)
         pending_p = max(tq - sum_plan_p, 0.0)
         stage_rows.append(

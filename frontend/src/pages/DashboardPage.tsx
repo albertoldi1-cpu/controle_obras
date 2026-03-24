@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useOutletContext } from "react-router-dom";
 import { Activity, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { api } from "../api";
 import type { Dashboard } from "../types";
@@ -23,17 +23,63 @@ function TrendIcon({ v }: { v: number | null }) {
 
 export default function DashboardPage() {
   const { projectId } = useOutletContext<Ctx>();
+  const location = useLocation();
   const [data, setData] = useState<Dashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const staleRef = useRef(false);
 
   useEffect(() => {
     let on = true;
+    setErr(null);
+    setData(null);
     api.dashboard(projectId).then(
       (d) => on && setData(d),
       (e) => on && setErr(e instanceof Error ? e.message : "Erro")
     );
     return () => {
       on = false;
+    };
+  }, [projectId, location.key]);
+
+  useEffect(() => {
+    let on = true;
+    function markStale() {
+      staleRef.current = true;
+    }
+    function refreshIfStale() {
+      if (!staleRef.current || document.visibilityState !== "visible") return;
+      staleRef.current = false;
+      setRefreshing(true);
+      api.dashboard(projectId).then(
+        (d) => {
+          if (!on) return;
+          setData(d);
+          setErr(null);
+          setRefreshing(false);
+        },
+        (e) => {
+          if (!on) return;
+          setErr(e instanceof Error ? e.message : "Erro");
+          setRefreshing(false);
+        }
+      );
+    }
+    function onVisibility() {
+      if (document.visibilityState === "hidden") {
+        markStale();
+        return;
+      }
+      refreshIfStale();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", markStale);
+    window.addEventListener("focus", refreshIfStale);
+    return () => {
+      on = false;
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", markStale);
+      window.removeEventListener("focus", refreshIfStale);
     };
   }, [projectId]);
 
@@ -57,10 +103,19 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/[0.08] via-transparent to-slate-900/40 p-6 md:p-8">
-        <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Avanço Físico</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Acompanhamento de etapas, curva S e farol físico (otimista, pessimista e executado).
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Avanço Físico</h1>
+            <p className="mt-2 max-w-3xl text-sm text-slate-400">
+              Acompanhamento de etapas, curva S e farol físico (otimista, pessimista e executado).
+            </p>
+          </div>
+          {refreshing ? (
+            <p className="shrink-0 text-xs text-slate-500" aria-live="polite">
+              Atualizando…
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
