@@ -40,7 +40,8 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
   if (chartData.length === 0) {
     return (
       <div className="flex h-80 items-center justify-center rounded-2xl border border-dashed border-white/15 text-slate-500">
-        Cadastre lançamentos físicos (Avanço físico) e importe a planilha «AVANÇO FINANCEIRO» para ver as três linhas.
+        Cadastre o avanço físico (menu Avanço físico / Lançamentos) e as previsões de faturamento abaixo para ver a
+        curva.
       </div>
     );
   }

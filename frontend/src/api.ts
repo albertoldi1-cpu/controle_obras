@@ -7,6 +7,7 @@ import type {
   CsvImportResult,
   FinancialPanelDashboard,
   ObraFinancialAdvance,
+  BillingForecastEntry,
   FinancialTeam,
   Project,
   Stage,
@@ -256,8 +257,29 @@ export const api = {
       postSpreadsheetImport(`/api/projects/${projectId}/financial/import.xls?kind=${kind}`, file),
     obraAdvance: (projectId: number) =>
       req<ObraFinancialAdvance>(`/api/projects/${projectId}/financial/obra-advance`),
-    importObraAdvanceXlsx: (projectId: number, file: File) =>
-      postSpreadsheetImport(`/api/projects/${projectId}/financial/obra-advance/import.xlsx`, file),
+    listBillingForecasts: (projectId: number) =>
+      req<BillingForecastEntry[]>(`/api/projects/${projectId}/financial/billing-forecasts`),
+    createBillingForecast: (
+      projectId: number,
+      body: { day: string; scenario: "optimistic" | "pessimistic"; amount_brl: number }
+    ) =>
+      req<BillingForecastEntry>(`/api/projects/${projectId}/financial/billing-forecasts`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateBillingForecast: (
+      projectId: number,
+      forecastId: number,
+      body: Partial<{ day: string; scenario: "optimistic" | "pessimistic"; amount_brl: number }>
+    ) =>
+      req<BillingForecastEntry>(`/api/projects/${projectId}/financial/billing-forecasts/${forecastId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    deleteBillingForecast: (projectId: number, forecastId: number) =>
+      req<{ ok: boolean }>(`/api/projects/${projectId}/financial/billing-forecasts/${forecastId}`, {
+        method: "DELETE",
+      }),
     listLegacyEntries: (projectId: number) =>
       req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
     createLegacyEntry: (

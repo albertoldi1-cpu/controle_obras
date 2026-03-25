@@ -18,6 +18,7 @@ from app.database import SessionLocal, get_db, init_db
 from app.deps import get_current_user, require_master
 from app.models import (
     DailyEntry,
+    FinancialBillingForecast,
     FinancialDailyPlan,
     FinancialDailyProduction,
     FinancialProductionEntry,
@@ -29,6 +30,9 @@ from app.models import (
 from app.rate_limit import login_rate_limited, register_login_attempt
 from app.schemas import (
     BackupEmailOut,
+    BillingForecastIn,
+    BillingForecastOut,
+    BillingForecastUpdate,
     BulkExecutedBody,
     BulkPlannedBody,
     CsvImportOut,
@@ -65,11 +69,7 @@ from app.services.financial import (
     financial_physical_comparison_excel_bytes,
     financial_excel_bytes,
 )
-from app.services.obra_financial_advance import (
-    build_obra_financial_advance,
-    parse_avanco_financeiro_xlsx,
-    replace_project_obra_plan,
-)
+from app.services.obra_financial_advance import build_obra_financial_advance
 from app.settings import cors_origins, docs_enabled
 
 app = FastAPI(
@@ -607,22 +607,104 @@ def get_obra_financial_advance(
     return build_obra_financial_advance(db, p)
 
 
-@app.post("/api/projects/{project_id}/financial/obra-advance/import.xlsx", response_model=CsvImportOut)
-async def import_obra_financial_advance_xlsx(
+@app.get("/api/projects/{project_id}/financial/billing-forecasts", response_model=List[BillingForecastOut])
+def list_billing_forecasts(
     project_id: int,
-    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
     if not db.get(Project, project_id):
         raise HTTPException(404, "Projeto não encontrado")
-    raw = await file.read()
-    try:
-        optimistic, pessimistic, imp_errors = parse_avanco_financeiro_xlsx(raw)
-        n = replace_project_obra_plan(db, project_id, optimistic, pessimistic)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    return CsvImportOut(upserted=n, errors=imp_errors)
+    return list(
+        db.scalars(
+            select(FinancialBillingForecast)
+            .where(FinancialBillingForecast.project_id == project_id)
+            .order_by(FinancialBillingForecast.day.desc(), FinancialBillingForecast.scenario)
+        ).all()
+    )
+
+
+@app.post("/api/projects/{project_id}/financial/billing-forecasts", response_model=BillingForecastOut)
+def create_billing_forecast(
+    project_id: int,
+    body: BillingForecastIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    dup = db.scalar(
+        select(FinancialBillingForecast).where(
+            FinancialBillingForecast.project_id == project_id,
+            FinancialBillingForecast.day == body.day,
+            FinancialBillingForecast.scenario == body.scenario,
+        )
+    )
+    if dup:
+        raise HTTPException(
+            400,
+            "Já existe previsão para esta data e cenário. Use editar no lançamento existente.",
+        )
+    row = FinancialBillingForecast(
+        project_id=project_id,
+        day=body.day,
+        scenario=body.scenario,
+        amount_brl=float(body.amount_brl),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.patch("/api/projects/{project_id}/financial/billing-forecasts/{forecast_id}", response_model=BillingForecastOut)
+def update_billing_forecast(
+    project_id: int,
+    forecast_id: int,
+    body: BillingForecastUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialBillingForecast, forecast_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Lançamento não encontrado")
+    new_day = body.day if body.day is not None else row.day
+    new_scenario = body.scenario if body.scenario is not None else row.scenario
+    new_amount = body.amount_brl if body.amount_brl is not None else row.amount_brl
+
+    if (new_day, new_scenario) != (row.day, row.scenario):
+        other = db.scalar(
+            select(FinancialBillingForecast).where(
+                FinancialBillingForecast.project_id == project_id,
+                FinancialBillingForecast.day == new_day,
+                FinancialBillingForecast.scenario == new_scenario,
+                FinancialBillingForecast.id != forecast_id,
+            )
+        )
+        if other:
+            raise HTTPException(400, "Já existe outro lançamento para esta data e cenário.")
+
+    row.day = new_day
+    row.scenario = new_scenario
+    row.amount_brl = float(new_amount)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.delete("/api/projects/{project_id}/financial/billing-forecasts/{forecast_id}")
+def delete_billing_forecast(
+    project_id: int,
+    forecast_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    row = db.get(FinancialBillingForecast, forecast_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Lançamento não encontrado")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 
 
 def _financial_team_in_project(db: Session, project_id: int, team_id: int) -> FinancialTeam:

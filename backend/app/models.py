@@ -71,6 +71,12 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="FinancialObraPlanDaily.day",
     )
+    financial_billing_forecasts: Mapped[List["FinancialBillingForecast"]] = relationship(
+        "FinancialBillingForecast",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="FinancialBillingForecast.day, FinancialBillingForecast.scenario",
+    )
 
 
 class Stage(Base):
@@ -209,3 +215,22 @@ class FinancialObraPlanDaily(Base):
     project: Mapped["Project"] = relationship("Project", back_populates="financial_obra_plan_daily")
 
     __table_args__ = (UniqueConstraint("project_id", "day", name="uq_fin_obra_plan_proj_day"),)
+
+
+class FinancialBillingForecast(Base):
+    """Previsão de faturamento diário (R$) por cenário — cadastro manual na página Avanço financeiro."""
+
+    __tablename__ = "financial_billing_forecasts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    scenario: Mapped[str] = mapped_column(String(16), nullable=False)
+    amount_brl: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship("Project", back_populates="financial_billing_forecasts")
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "day", "scenario", name="uq_fin_billing_proj_day_scenario"),
+    )

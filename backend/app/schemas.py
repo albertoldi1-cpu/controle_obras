@@ -302,8 +302,34 @@ class ObraFinancialAdvanceOut(BaseModel):
     project_id: int
     project_name: str
     obra_total_value_brl: Optional[float] = None
-    source_planned: Literal["imported", "none"]
+    has_billing_forecasts: bool
     series: List[ObraFinancialAdvancePoint]
+
+
+BillingForecastScenario = Literal["optimistic", "pessimistic"]
+
+
+class BillingForecastIn(BaseModel):
+    day: date
+    scenario: BillingForecastScenario
+    amount_brl: float = Field(..., ge=0, le=1e15)
+
+
+class BillingForecastUpdate(BaseModel):
+    day: Optional[date] = None
+    scenario: Optional[BillingForecastScenario] = None
+    amount_brl: Optional[float] = Field(None, ge=0, le=1e15)
+
+
+class BillingForecastOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    day: date
+    scenario: str
+    amount_brl: float
+    created_at: datetime
 
 
 class CsvImportOut(BaseModel):

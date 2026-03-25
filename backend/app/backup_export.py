@@ -15,6 +15,7 @@ from sqlalchemy.exc import OperationalError
 
 from app.models import (
     DailyEntry,
+    FinancialBillingForecast,
     FinancialDailyPlan,
     FinancialDailyProduction,
     FinancialObraPlanDaily,
@@ -36,6 +37,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
     fplans = _safe_scalars(db, select(FinancialDailyPlan).order_by(FinancialDailyPlan.id))
     fprod = _safe_scalars(db, select(FinancialDailyProduction).order_by(FinancialDailyProduction.id))
     fobra = _safe_scalars(db, select(FinancialObraPlanDaily).order_by(FinancialObraPlanDaily.id))
+    fbill = _safe_scalars(db, select(FinancialBillingForecast).order_by(FinancialBillingForecast.id))
 
     return {
         "export_version": 1,
@@ -152,6 +154,17 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
             for x in fobra
+        ],
+        "financial_billing_forecasts": [
+            {
+                "id": x.id,
+                "project_id": x.project_id,
+                "day": x.day.isoformat(),
+                "scenario": x.scenario,
+                "amount_brl": x.amount_brl,
+                "created_at": x.created_at.isoformat() if x.created_at else None,
+            }
+            for x in fbill
         ],
     }
 

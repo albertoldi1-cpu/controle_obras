@@ -1,100 +1,250 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
+import { Pencil, Trash2 } from "lucide-react";
 import { api } from "../api";
-import type { ObraFinancialAdvance } from "../types";
+import type { BillingForecastEntry, BillingForecastScenario, ObraFinancialAdvance } from "../types";
 import ObraFinancialAdvanceChart from "../components/ObraFinancialAdvanceChart";
-import SpreadsheetImportBlock from "../components/SpreadsheetImportBlock";
 
 type Ctx = { projectId: number };
 
+function scenarioLabel(s: BillingForecastScenario) {
+  return s === "optimistic" ? "Otimista" : "Pessimista";
+}
+
+function defaultDay(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function FinancialObraAdvancePage() {
   const { projectId } = useOutletContext<Ctx>();
-  const [data, setData] = useState<ObraFinancialAdvance | null>(null);
+  const [adv, setAdv] = useState<ObraFinancialAdvance | null>(null);
+  const [rows, setRows] = useState<BillingForecastEntry[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [formErr, setFormErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(() => {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [day, setDay] = useState(defaultDay);
+  const [amount, setAmount] = useState("");
+  const [scenario, setScenario] = useState<BillingForecastScenario>("optimistic");
+
+  const loadAll = useCallback(() => {
     setErr(null);
-    api.financial
-      .obraAdvance(projectId)
-      .then(setData)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Erro ao carregar"));
+    return Promise.all([
+      api.financial.obraAdvance(projectId),
+      api.financial.listBillingForecasts(projectId),
+    ]).then(
+      ([a, r]) => {
+        setAdv(a);
+        setRows(r);
+      },
+      (e) => setErr(e instanceof Error ? e.message : "Erro ao carregar")
+    );
   }, [projectId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadAll();
+  }, [loadAll]);
 
-  if (err) {
+  function resetForm() {
+    setEditingId(null);
+    setDay(defaultDay());
+    setAmount("");
+    setScenario("optimistic");
+    setFormErr(null);
+  }
+
+  function startEdit(entry: BillingForecastEntry) {
+    setEditingId(entry.id);
+    setDay(entry.day);
+    setAmount(String(entry.amount_brl));
+    setScenario(entry.scenario);
+    setFormErr(null);
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormErr(null);
+    const val = parseFloat(amount.replace(",", "."));
+    if (!Number.isFinite(val) || val < 0) {
+      setFormErr("Informe um valor planejado válido (≥ 0).");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (editingId != null) {
+        await api.financial.updateBillingForecast(projectId, editingId, {
+          day,
+          scenario,
+          amount_brl: val,
+        });
+      } else {
+        await api.financial.createBillingForecast(projectId, { day, scenario, amount_brl: val });
+      }
+      resetForm();
+      await loadAll();
+    } catch (ex) {
+      setFormErr(ex instanceof Error ? ex.message : "Erro ao salvar");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDelete(id: number) {
+    if (!window.confirm("Excluir este lançamento de previsão?")) return;
+    setBusy(true);
+    try {
+      await api.financial.deleteBillingForecast(projectId, id);
+      if (editingId === id) resetForm();
+      await loadAll();
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Erro ao excluir");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (err && !adv) {
     return <p className="text-signal-bad">{err}</p>;
   }
-  if (!data) {
+  if (!adv) {
     return <p className="animate-pulse text-slate-500">Carregando avanço financeiro…</p>;
   }
-
-  const sourceLabel =
-    data.source_planned === "imported"
-      ? "Previsões financeiras: importadas da planilha (faturamento diário nas linhas indicadas)."
-      : "Ainda não há import da planilha: as linhas otimista/pessimista aparecem após o upload. O avanço físico vem dos lançamentos.";
 
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/[0.08] via-transparent to-slate-900/40 p-6 md:p-8">
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Avanço financeiro</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Três séries: <strong className="text-slate-300">avanço físico executado</strong> (mesma lógica do painel Avanço
-          físico, eixo em % da obra) e <strong className="text-slate-300">previsão financeira diária</strong> em R$ (eixo
-          direito) para os cenários otimista e pessimista, lidos da folha «AVANÇO FINANCEIRO».
-        </p>
-        <p className="mt-3 text-xs text-slate-500">{sourceLabel}</p>
       </div>
 
       <section className="glass rounded-2xl p-6">
-        <h2 className="font-display text-lg font-semibold text-white">Importar «AVANÇO FINANCEIRO» (Excel)</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          O ficheiro não fica no repositório. O layout esperado na folha (números de linha como no Excel):
-        </p>
+        <h2 className="font-display text-xl font-semibold text-white">Curva</h2>
         <div className="mt-4">
-          <SpreadsheetImportBlock
-            title="Planilha «AVANÇO FINANCEIRO»"
-            specLines={[
-              "Folha com nome contendo «AVANÇO FINANCEIRO» (ou primeira folha com «financeiro» no nome).",
-              "Otimista: linha 4 = datas da previsão (eixo X); linha 13 = faturamento diário em R$ (eixo Y), coluna a coluna.",
-              "Pessimista: linha 16 = datas; linha 25 = faturamento diário em R$, alinhado às mesmas colunas.",
-              "Cada import substitui os dados financeiros gravados anteriormente neste projeto.",
-            ]}
-            onImport={async (file) => {
-              const r = await api.financial.importObraAdvanceXlsx(projectId, file);
-              await load();
-              return { upserted: r.upserted, errors: r.errors };
-            }}
-          />
+          <ObraFinancialAdvanceChart data={adv.series} />
         </div>
       </section>
 
       <section className="glass rounded-2xl p-6">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="font-display text-xl font-semibold text-white">Curva — físico × previsões financeiras</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Eixo esquerdo: % de avanço físico da obra (ponderado). Eixo direito: valores diários em reais (import).
-            </p>
+        <h2 className="font-display text-lg font-semibold text-white">Previsão de faturamento</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Lançamentos manuais: cada registro alimenta a curva (valores diários em R$ por cenário).
+        </p>
+
+        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Data do faturamento planejado</label>
+              <input
+                type="date"
+                required
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Valor planejado (R$)</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                placeholder="0,00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Cenário</label>
+              <select
+                value={scenario}
+                onChange={(e) => setScenario(e.target.value as BillingForecastScenario)}
+                className="w-full rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-sm text-white"
+              >
+                <option value="optimistic">Otimista</option>
+                <option value="pessimistic">Pessimista</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={busy}
+                className="rounded-xl bg-accent px-4 py-2 text-sm font-medium text-white shadow-lift disabled:opacity-50"
+              >
+                {editingId != null ? "Salvar alterações" : "Incluir lançamento"}
+              </button>
+              {editingId != null ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={resetForm}
+                  className="rounded-xl border border-white/15 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+                >
+                  Cancelar edição
+                </button>
+              ) : null}
+            </div>
           </div>
-          <div className="flex max-w-md flex-col gap-2 text-xs text-slate-500">
-            <span className="inline-flex items-center gap-2">
-              <span className="block h-0 w-7 border-t-2 border-dashed border-[#94a3b8]" aria-hidden />
-              Avanço físico (%)
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="block h-0.5 w-7 rounded-full bg-[#4ade80]" aria-hidden />
-              Previsão otimista (R$/dia)
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <span className="block h-0.5 w-7 rounded-full bg-[#3d8bfd]" aria-hidden />
-              Previsão pessimista (R$/dia)
-            </span>
-          </div>
+          {formErr ? <p className="text-sm text-signal-bad">{formErr}</p> : null}
+        </form>
+
+        <div className="mt-8 overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-slate-500">
+                <th className="px-3 py-3">Data</th>
+                <th className="px-3 py-3">Cenário</th>
+                <th className="px-3 py-3">Valor (R$)</th>
+                <th className="px-3 py-3 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-3 py-8 text-center text-slate-500">
+                    Nenhum lançamento cadastrado.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id} className="border-b border-white/5 text-slate-300">
+                    <td className="px-3 py-3 text-white">
+                      {new Date(r.day + "T12:00:00").toLocaleDateString("pt-BR")}
+                    </td>
+                    <td className="px-3 py-3">{scenarioLabel(r.scenario)}</td>
+                    <td className="px-3 py-3">
+                      {r.amount_brl.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => startEdit(r)}
+                        className="mr-2 inline-flex items-center gap-1 rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onDelete(r.id)}
+                        className="inline-flex items-center gap-1 rounded-lg p-2 text-slate-400 hover:bg-red-500/15 hover:text-red-300"
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-        <ObraFinancialAdvanceChart data={data.series} />
       </section>
     </div>
   );

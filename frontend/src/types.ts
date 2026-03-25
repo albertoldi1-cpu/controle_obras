@@ -98,8 +98,19 @@ export interface ObraFinancialAdvance {
   project_id: number;
   project_name: string;
   obra_total_value_brl?: number | null;
-  source_planned: "imported" | "none";
+  has_billing_forecasts: boolean;
   series: ObraFinancialAdvancePoint[];
+}
+
+export type BillingForecastScenario = "optimistic" | "pessimistic";
+
+export interface BillingForecastEntry {
+  id: number;
+  project_id: number;
+  day: string;
+  scenario: BillingForecastScenario;
+  amount_brl: number;
+  created_at: string;
 }
 
 /** Lançamento detalhado (planilha UPS) — API legada */

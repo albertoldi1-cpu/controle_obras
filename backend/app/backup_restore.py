@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.backup_export import build_snapshot_dict
 from app.models import (
     DailyEntry,
+    FinancialBillingForecast,
     FinancialDailyPlan,
     FinancialDailyProduction,
     FinancialObraPlanDaily,
@@ -48,6 +49,7 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
     # Ordem de limpeza respeita FKs (filhos -> pais)
     for model in (
         FinancialDailyProduction,
+        FinancialBillingForecast,
         FinancialObraPlanDaily,
         FinancialDailyPlan,
         FinancialProductionEntry,
@@ -174,6 +176,17 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
             )
         )
 
+    for row in data.get("financial_billing_forecasts", []):
+        db.add(
+            FinancialBillingForecast(
+                id=row["id"],
+                project_id=row["project_id"],
+                day=row["day"],
+                scenario=row.get("scenario", "optimistic"),
+                amount_brl=row.get("amount_brl", 0.0),
+            )
+        )
+
     db.flush()
     _sync_pk_sequences_if_postgres(db)
     db.commit()
@@ -197,6 +210,7 @@ def _sync_pk_sequences_if_postgres(db: Session) -> None:
         "financial_daily_plans": "id",
         "financial_daily_production": "id",
         "financial_obra_plan_daily": "id",
+        "financial_billing_forecasts": "id",
     }
     for table, pk in table_pk.items():
         db.execute(
