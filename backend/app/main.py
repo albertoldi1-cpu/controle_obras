@@ -43,6 +43,7 @@ from app.schemas import (
     FinancialEntryOut,
     FinancialPhysicalComparisonOut,
     FinancialPanelDashboardOut,
+    ObraFinancialAdvanceOut,
     FinancialTeamIn,
     FinancialTeamOut,
     LoginIn,
@@ -63,6 +64,11 @@ from app.services.financial import (
     build_financial_physical_comparison,
     financial_physical_comparison_excel_bytes,
     financial_excel_bytes,
+)
+from app.services.obra_financial_advance import (
+    build_obra_financial_advance,
+    parse_avanco_financeiro_xlsx,
+    replace_project_obra_plan,
 )
 from app.settings import cors_origins, docs_enabled
 
@@ -583,6 +589,36 @@ def export_financial_physical_comparison_xlsx(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+@app.get("/api/projects/{project_id}/financial/obra-advance", response_model=ObraFinancialAdvanceOut)
+def get_obra_financial_advance(
+    project_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    p = db.get(Project, project_id)
+    if not p:
+        raise HTTPException(404, "Projeto não encontrado")
+    return build_obra_financial_advance(db, p)
+
+
+@app.post("/api/projects/{project_id}/financial/obra-advance/import.xlsx", response_model=CsvImportOut)
+async def import_obra_financial_advance_xlsx(
+    project_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Projeto não encontrado")
+    raw = await file.read()
+    try:
+        daily = parse_avanco_financeiro_xlsx(raw)
+        n = replace_project_obra_plan(db, project_id, daily)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return CsvImportOut(upserted=n, errors=[])
 
 
 def _financial_team_in_project(db: Session, project_id: int, team_id: int) -> FinancialTeam:

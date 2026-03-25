@@ -291,6 +291,20 @@ class FinancialPhysicalComparisonOut(BaseModel):
     summary: FinancialPhysicalComparisonSummary
 
 
+class ObraFinancialAdvancePoint(BaseModel):
+    day: date
+    planned_financial_pct: float
+    productive_advance_pct: float
+
+
+class ObraFinancialAdvanceOut(BaseModel):
+    project_id: int
+    project_name: str
+    obra_total_value_brl: Optional[float] = None
+    source_planned: Literal["imported", "app_plans"]
+    series: List[ObraFinancialAdvancePoint]
+
+
 class CsvImportOut(BaseModel):
     upserted: int
     errors: List[str] = Field(default_factory=list)

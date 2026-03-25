@@ -12,6 +12,7 @@ import FinancialPanelPage from "./pages/FinancialPanelPage";
 import FinancialPlanningPage from "./pages/FinancialPlanningPage";
 import FinancialProductivityPage from "./pages/FinancialProductivityPage";
 import FinancialTeamsPage from "./pages/FinancialTeamsPage";
+import FinancialObraAdvancePage from "./pages/FinancialObraAdvancePage";
 
 function RedirectFinancialHome() {
   const { id } = useParams();
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/projeto/:id" element={<ProjectShell />}>
           <Route index element={<Navigate to="painel" replace />} />
           <Route path="painel" element={<DashboardPage />} />
+          <Route path="avanco-financeiro" element={<FinancialObraAdvancePage />} />
           <Route path="etapas" element={<StagesPage />} />
           <Route path="lancamentos" element={<EntriesPage />} />
           <Route path="financeiro" element={<FinancialSection />}>

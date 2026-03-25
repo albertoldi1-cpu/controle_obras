@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useOutletContext } from "react-router-dom";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { api } from "../api";
+import { DASHBOARD_REFRESH_EVENT } from "../lib/dashboardEvents";
 import type { Dashboard } from "../types";
 import SCurveChart from "../components/SCurveChart";
 import FarolDot from "../components/FarolDot";
@@ -41,6 +42,33 @@ export default function DashboardPage() {
       on = false;
     };
   }, [projectId, location.key]);
+
+  useEffect(() => {
+    let on = true;
+    function onDashboardRefresh(ev: Event) {
+      const ce = ev as CustomEvent<{ projectId?: number }>;
+      if (ce.detail?.projectId !== projectId) return;
+      setRefreshing(true);
+      api.dashboard(projectId).then(
+        (d) => {
+          if (!on) return;
+          setData(d);
+          setErr(null);
+          setRefreshing(false);
+        },
+        (e) => {
+          if (!on) return;
+          setErr(e instanceof Error ? e.message : "Erro");
+          setRefreshing(false);
+        }
+      );
+    }
+    window.addEventListener(DASHBOARD_REFRESH_EVENT, onDashboardRefresh);
+    return () => {
+      on = false;
+      window.removeEventListener(DASHBOARD_REFRESH_EVENT, onDashboardRefresh);
+    };
+  }, [projectId]);
 
   useEffect(() => {
     let on = true;

@@ -14,6 +14,7 @@ from app.models import (
     DailyEntry,
     FinancialDailyPlan,
     FinancialDailyProduction,
+    FinancialObraPlanDaily,
     FinancialProductionEntry,
     FinancialTeam,
     Project,
@@ -47,6 +48,7 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
     # Ordem de limpeza respeita FKs (filhos -> pais)
     for model in (
         FinancialDailyProduction,
+        FinancialObraPlanDaily,
         FinancialDailyPlan,
         FinancialProductionEntry,
         DailyEntry,
@@ -161,6 +163,16 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
             )
         )
 
+    for row in data.get("financial_obra_plan_daily", []):
+        db.add(
+            FinancialObraPlanDaily(
+                id=row["id"],
+                project_id=row["project_id"],
+                day=row["day"],
+                planned_increment_brl=row.get("planned_increment_brl", 0.0),
+            )
+        )
+
     db.flush()
     _sync_pk_sequences_if_postgres(db)
     db.commit()
@@ -183,6 +195,7 @@ def _sync_pk_sequences_if_postgres(db: Session) -> None:
         "financial_teams": "id",
         "financial_daily_plans": "id",
         "financial_daily_production": "id",
+        "financial_obra_plan_daily": "id",
     }
     for table, pk in table_pk.items():
         db.execute(

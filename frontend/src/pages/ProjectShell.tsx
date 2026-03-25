@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useParams, Link } from "react-router-dom";
-import { ArrowLeft, Banknote, ClipboardList, Gauge, Layers, LogOut, Shield } from "lucide-react";
+import { ArrowLeft, Banknote, ClipboardList, Gauge, Layers, LineChart, LogOut, Shield } from "lucide-react";
 import { api } from "../api";
 import type { Project } from "../types";
 import clsx from "clsx";
@@ -9,6 +9,7 @@ import { useAuth } from "../auth/AuthContext";
 const tabs = [
   { to: "painel", label: "Avanço físico", icon: Gauge, end: true },
   { to: "financeiro", label: "Avanço Produtivo", icon: Banknote, end: false },
+  { to: "avanco-financeiro", label: "Avanço Financeiro", icon: LineChart, end: true },
   { to: "etapas", label: "Etapas", icon: Layers, end: true },
   { to: "lancamentos", label: "Lançamentos", icon: ClipboardList, end: true },
 ] as const;

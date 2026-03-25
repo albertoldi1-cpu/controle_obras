@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Save } from "lucide-react";
 import { api } from "../api";
+import { requestDashboardRefresh } from "../lib/dashboardEvents";
 import type { Stage } from "../types";
 import SpreadsheetImportBlock from "../components/SpreadsheetImportBlock";
 
@@ -130,6 +131,7 @@ export default function EntriesPage() {
       }
       const r = await api.bulkPlanned(projectId, entries);
       setMsg(`Planejamento salvo (${r.upserted} células).`);
+      requestDashboardRefresh(projectId);
       await loadAll();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Erro ao salvar planejamento");
@@ -162,6 +164,7 @@ export default function EntriesPage() {
       }
       const r = await api.bulkExecuted(projectId, entries);
       setMsg(`Execução salva (${r.upserted} células).`);
+      requestDashboardRefresh(projectId);
       await loadAll();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Erro ao salvar execução");

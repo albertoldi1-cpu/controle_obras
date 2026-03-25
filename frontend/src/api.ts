@@ -6,6 +6,7 @@ import type {
   FinancialEntry,
   CsvImportResult,
   FinancialPanelDashboard,
+  ObraFinancialAdvance,
   FinancialTeam,
   Project,
   Stage,
@@ -253,6 +254,10 @@ export const api = {
       req(`/api/projects/${projectId}/financial/production/${prodId}`, { method: "DELETE" }),
     importSpreadsheet: (projectId: number, kind: "plans" | "production", file: File) =>
       postSpreadsheetImport(`/api/projects/${projectId}/financial/import.xls?kind=${kind}`, file),
+    obraAdvance: (projectId: number) =>
+      req<ObraFinancialAdvance>(`/api/projects/${projectId}/financial/obra-advance`),
+    importObraAdvanceXlsx: (projectId: number, file: File) =>
+      postSpreadsheetImport(`/api/projects/${projectId}/financial/obra-advance/import.xlsx`, file),
     listLegacyEntries: (projectId: number) =>
       req<FinancialEntry[]>(`/api/projects/${projectId}/financial/entries`),
     createLegacyEntry: (

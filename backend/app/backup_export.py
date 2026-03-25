@@ -17,6 +17,7 @@ from app.models import (
     DailyEntry,
     FinancialDailyPlan,
     FinancialDailyProduction,
+    FinancialObraPlanDaily,
     FinancialProductionEntry,
     FinancialTeam,
     Project,
@@ -34,6 +35,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
     fteams = _safe_scalars(db, select(FinancialTeam).order_by(FinancialTeam.id))
     fplans = _safe_scalars(db, select(FinancialDailyPlan).order_by(FinancialDailyPlan.id))
     fprod = _safe_scalars(db, select(FinancialDailyProduction).order_by(FinancialDailyProduction.id))
+    fobra = _safe_scalars(db, select(FinancialObraPlanDaily).order_by(FinancialObraPlanDaily.id))
 
     return {
         "export_version": 1,
@@ -139,6 +141,16 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
             for x in fprod
+        ],
+        "financial_obra_plan_daily": [
+            {
+                "id": x.id,
+                "project_id": x.project_id,
+                "day": x.day.isoformat(),
+                "planned_increment_brl": x.planned_increment_brl,
+                "created_at": x.created_at.isoformat() if x.created_at else None,
+            }
+            for x in fobra
         ],
     }
 

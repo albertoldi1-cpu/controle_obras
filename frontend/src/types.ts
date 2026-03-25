@@ -87,6 +87,20 @@ export interface Dashboard {
   stages: StageDashboardRow[];
 }
 
+export interface ObraFinancialAdvancePoint {
+  day: string;
+  planned_financial_pct: number;
+  productive_advance_pct: number;
+}
+
+export interface ObraFinancialAdvance {
+  project_id: number;
+  project_name: string;
+  obra_total_value_brl?: number | null;
+  source_planned: "imported" | "app_plans";
+  series: ObraFinancialAdvancePoint[];
+}
+
 /** Lançamento detalhado (planilha UPS) — API legada */
 export interface FinancialEntry {
   id: number;
