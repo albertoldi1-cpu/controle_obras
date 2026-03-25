@@ -129,7 +129,7 @@ export default function FinancialObraAdvancePage() {
       </section>
 
       <section className="glass rounded-2xl p-6">
-        <h2 className="font-display text-lg font-semibold text-white">Previsão de faturamento</h2>
+        <h2 className="font-display text-lg font-semibold text-white">Previsão Financeira</h2>
         <p className="mt-1 text-sm text-slate-500">
           Lançamentos manuais: cada registro alimenta a curva (valores diários em R$ por cenário).
         </p>

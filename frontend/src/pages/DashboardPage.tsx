@@ -194,9 +194,6 @@ export default function DashboardPage() {
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-display text-xl font-semibold text-white">Curva S — avanço físico</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Peso da etapa é o mesmo para otimista e pessimista; apenas as quantidades diárias planejadas mudam.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
             <span className="inline-flex items-center gap-2">
