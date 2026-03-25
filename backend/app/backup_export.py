@@ -148,6 +148,7 @@ def build_snapshot_dict(db: Session) -> dict[str, Any]:
                 "project_id": x.project_id,
                 "day": x.day.isoformat(),
                 "planned_increment_brl": x.planned_increment_brl,
+                "planned_pessimistic_brl": getattr(x, "planned_pessimistic_brl", None),
                 "created_at": x.created_at.isoformat() if x.created_at else None,
             }
             for x in fobra

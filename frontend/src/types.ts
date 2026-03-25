@@ -89,15 +89,16 @@ export interface Dashboard {
 
 export interface ObraFinancialAdvancePoint {
   day: string;
-  planned_financial_pct: number;
-  productive_advance_pct: number;
+  physical_executed_pct: number;
+  forecast_optimistic_brl?: number | null;
+  forecast_pessimistic_brl?: number | null;
 }
 
 export interface ObraFinancialAdvance {
   project_id: number;
   project_name: string;
   obra_total_value_brl?: number | null;
-  source_planned: "imported" | "app_plans";
+  source_planned: "imported" | "none";
   series: ObraFinancialAdvancePoint[];
 }
 

@@ -194,7 +194,7 @@ class FinancialDailyProduction(Base):
 
 
 class FinancialObraPlanDaily(Base):
-    """Valores diários (R$) do planejamento financeiro da obra — ex.: import da folha «AVANÇO FINANCEIRO» (cenário otimista)."""
+    """Faturamento diário (R$) importado da folha «AVANÇO FINANCEIRO»: otimista (linhas 4+13) e pessimista (16+25)."""
 
     __tablename__ = "financial_obra_plan_daily"
 
@@ -202,6 +202,8 @@ class FinancialObraPlanDaily(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     planned_increment_brl: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    # Faturamento diário pessimista (import linhas 16 + 25); NULL se o dia só existe no cenário otimista.
+    planned_pessimistic_brl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     project: Mapped["Project"] = relationship("Project", back_populates="financial_obra_plan_daily")

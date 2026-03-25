@@ -293,15 +293,16 @@ class FinancialPhysicalComparisonOut(BaseModel):
 
 class ObraFinancialAdvancePoint(BaseModel):
     day: date
-    planned_financial_pct: float
-    productive_advance_pct: float
+    physical_executed_pct: float
+    forecast_optimistic_brl: Optional[float] = None
+    forecast_pessimistic_brl: Optional[float] = None
 
 
 class ObraFinancialAdvanceOut(BaseModel):
     project_id: int
     project_name: str
     obra_total_value_brl: Optional[float] = None
-    source_planned: Literal["imported", "app_plans"]
+    source_planned: Literal["imported", "none"]
     series: List[ObraFinancialAdvancePoint]
 
 

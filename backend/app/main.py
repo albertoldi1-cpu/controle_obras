@@ -597,7 +597,11 @@ def get_obra_financial_advance(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    p = db.get(Project, project_id)
+    p = db.scalar(
+        select(Project)
+        .options(joinedload(Project.stages).joinedload(Stage.entries))
+        .where(Project.id == project_id)
+    )
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
     return build_obra_financial_advance(db, p)
@@ -614,11 +618,11 @@ async def import_obra_financial_advance_xlsx(
         raise HTTPException(404, "Projeto não encontrado")
     raw = await file.read()
     try:
-        daily = parse_avanco_financeiro_xlsx(raw)
-        n = replace_project_obra_plan(db, project_id, daily)
+        optimistic, pessimistic, imp_errors = parse_avanco_financeiro_xlsx(raw)
+        n = replace_project_obra_plan(db, project_id, optimistic, pessimistic)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return CsvImportOut(upserted=n, errors=[])
+    return CsvImportOut(upserted=n, errors=imp_errors)
 
 
 def _financial_team_in_project(db: Session, project_id: int, team_id: int) -> FinancialTeam:

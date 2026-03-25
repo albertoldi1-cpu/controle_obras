@@ -215,6 +215,21 @@ def migrate_financial_daily_plan_planning():
             pass
 
 
+def migrate_financial_obra_plan_pessimistic():
+    try:
+        insp = inspect(engine)
+    except Exception:
+        return
+    if not insp.has_table("financial_obra_plan_daily"):
+        return
+    cols = {c["name"] for c in insp.get_columns("financial_obra_plan_daily")}
+    if "planned_pessimistic_brl" in cols:
+        return
+    typ = "REAL" if engine.dialect.name == "sqlite" else "DOUBLE PRECISION"
+    with engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE financial_obra_plan_daily ADD COLUMN planned_pessimistic_brl {typ}"))
+
+
 def init_db():
     from app import models  # noqa: F401 — registra tabelas
 
@@ -225,3 +240,4 @@ def init_db():
     migrate_projects_obra_total()
     migrate_financial_team_default_target()
     migrate_financial_daily_plan_planning()
+    migrate_financial_obra_plan_pessimistic()

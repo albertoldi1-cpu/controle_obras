@@ -170,6 +170,7 @@ def restore_snapshot_dict(db: Session, data: dict[str, Any]) -> None:
                 project_id=row["project_id"],
                 day=row["day"],
                 planned_increment_brl=row.get("planned_increment_brl", 0.0),
+                planned_pessimistic_brl=row.get("planned_pessimistic_brl"),
             )
         )
 
