@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useOutletContext } from "react-router-dom";
-import { Activity, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { api } from "../api";
 import type { Dashboard } from "../types";
 import SCurveChart from "../components/SCurveChart";
@@ -170,9 +170,22 @@ export default function DashboardPage() {
               Peso da etapa é o mesmo para otimista e pessimista; apenas as quantidades diárias planejadas mudam.
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Activity className="h-4 w-4 text-accent" />
-            Otimista · Pessimista · Real
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-2">
+              <span className="block h-0.5 w-7 rounded-full bg-[#4ade80]" aria-hidden />
+              Otimista
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="block h-0.5 w-7 rounded-full bg-[#3d8bfd]" aria-hidden />
+              Pessimista
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="block h-0 w-7 border-t-2 border-dashed border-[#94a3b8]"
+                aria-hidden
+              />
+              Real (tracejado)
+            </span>
           </div>
         </div>
         <SCurveChart data={series} />

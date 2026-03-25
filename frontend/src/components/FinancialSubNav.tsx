@@ -4,8 +4,7 @@ import clsx from "clsx";
 export default function FinancialSubNav({ projectId }: { projectId: number }) {
   const base = `/projeto/${projectId}/financeiro`;
   const links: { to: string; label: string; end?: boolean }[] = [
-    { to: base, label: "Painel Financeiro", end: true },
-    { to: `${base}/comparativo`, label: "Comp. Físico × Produtivo", end: true },
+    { to: base, label: "Painel Produtivo", end: true },
     { to: `${base}/equipes`, label: "Equipes", end: true },
     { to: `${base}/planejamento`, label: "Planejamento", end: true },
     { to: `${base}/produtividade`, label: "Lanç. produtividade", end: true },

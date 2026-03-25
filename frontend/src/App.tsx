@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import RequireAuth from "./components/RequireAuth";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
@@ -9,10 +9,14 @@ import StagesPage from "./pages/StagesPage";
 import EntriesPage from "./pages/EntriesPage";
 import FinancialSection from "./pages/FinancialSection";
 import FinancialPanelPage from "./pages/FinancialPanelPage";
-import FinancialPhysicalComparisonPage from "./pages/FinancialPhysicalComparisonPage";
 import FinancialPlanningPage from "./pages/FinancialPlanningPage";
 import FinancialProductivityPage from "./pages/FinancialProductivityPage";
 import FinancialTeamsPage from "./pages/FinancialTeamsPage";
+
+function RedirectFinancialHome() {
+  const { id } = useParams();
+  return <Navigate to={`/projeto/${id}/financeiro`} replace />;
+}
 
 export default function App() {
   return (
@@ -28,7 +32,7 @@ export default function App() {
           <Route path="lancamentos" element={<EntriesPage />} />
           <Route path="financeiro" element={<FinancialSection />}>
             <Route index element={<FinancialPanelPage />} />
-            <Route path="comparativo" element={<FinancialPhysicalComparisonPage />} />
+            <Route path="comparativo" element={<RedirectFinancialHome />} />
             <Route path="equipes" element={<FinancialTeamsPage />} />
             <Route path="planejamento" element={<FinancialPlanningPage />} />
             <Route path="produtividade" element={<FinancialProductivityPage />} />

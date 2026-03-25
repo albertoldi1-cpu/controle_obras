@@ -70,9 +70,8 @@ export default function SCurveChart({ data }: { data: SeriesPoint[] }) {
             type="monotone"
             dataKey="pessimistic"
             name="Planejamento pessimista"
-            stroke="#94a3b8"
+            stroke="#3d8bfd"
             strokeWidth={2}
-            strokeDasharray="6 4"
             dot={false}
             connectNulls={false}
           />
@@ -80,8 +79,9 @@ export default function SCurveChart({ data }: { data: SeriesPoint[] }) {
             type="monotone"
             dataKey="executed"
             name="Executado (real)"
-            stroke="#3d8bfd"
+            stroke="#94a3b8"
             strokeWidth={3}
+            strokeDasharray="6 4"
             dot={false}
             activeDot={{ r: 5 }}
             connectNulls={false}

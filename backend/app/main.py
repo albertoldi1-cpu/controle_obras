@@ -498,7 +498,7 @@ async def import_project_entries_spreadsheet(
     return CsvImportOut(upserted=n, errors=errors)
 
 
-# --- Painel financeiro (avanço produtivo: planejado × produzido) ---
+# --- Painel produtivo (avanço produtivo: planejado × produzido) ---
 
 
 @app.get("/api/projects/{project_id}/financial/dashboard", response_model=FinancialPanelDashboardOut)

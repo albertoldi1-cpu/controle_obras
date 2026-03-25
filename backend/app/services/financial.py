@@ -1,4 +1,4 @@
-"""Painel financeiro: meta total das equipes (planejado) × produzido, curva acumulada e farol diário."""
+"""Painel produtivo: meta total das equipes (planejado) × produzido, curva acumulada e farol diário."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -22,19 +22,10 @@ from app.schemas import (
     FinancialTeamBriefOut,
 )
 
-# Banda “pessimista” para o farol (mesma ideia do avanço físico)
-FIN_PEAK = 0.85
-
-
 def _farol(planned: float, produced: float) -> Farol:
-    if planned <= 0 and produced <= 0:
+    """Verde se produzido ≥ meta do dia; vermelho caso contrário (sem faixa amarela)."""
+    if produced + 1e-9 >= planned:
         return "green"
-    if planned <= 0:
-        return "green"
-    if produced >= planned:
-        return "green"
-    if produced >= planned * FIN_PEAK:
-        return "yellow"
     return "red"
 
 
@@ -339,7 +330,7 @@ def financial_excel_bytes(
 
     bio = io.BytesIO()
     wb.save(bio)
-    fname = f"painel-financeiro-{project.id}.xlsx"
+    fname = f"painel-produtivo-{project.id}.xlsx"
     return bio.getvalue(), fname
 
 

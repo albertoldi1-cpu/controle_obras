@@ -82,7 +82,7 @@ export default function FinancialPanelPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `painel-financeiro-${projectId}.xlsx`;
+      a.download = `painel-produtivo-${projectId}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -146,7 +146,7 @@ export default function FinancialPanelPage() {
     return <p className="text-signal-bad">{err}</p>;
   }
   if (!data) {
-    return <p className="animate-pulse text-slate-500">Carregando painel financeiro…</p>;
+    return <p className="animate-pulse text-slate-500">Carregando painel produtivo…</p>;
   }
 
   const dev = data.summary.deviation_pct;
@@ -157,7 +157,7 @@ export default function FinancialPanelPage() {
   return (
     <div className="space-y-8">
       <div className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] via-transparent to-slate-900/40 p-6 md:p-8">
-        <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Financeiro</h1>
+        <h1 className="font-display text-2xl font-bold text-white md:text-3xl">Painel Produtivo</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
           Avanço produtivo: lançamentos separados de <strong className="text-slate-300">meta</strong> e{" "}
           <strong className="text-slate-300">realizado</strong> por dia e por equipe cadastrada; curva acumulada e farol
@@ -435,7 +435,7 @@ export default function FinancialPanelPage() {
           <p className="mt-1 text-sm text-slate-500">
             Planejado do dia: soma do <strong className="text-slate-400">planejamento diário</strong> (R$) das
             equipes que produziram, quando informado; senão usa a <strong className="text-slate-400">meta da equipe</strong>.
-            Verde: produzido ≥ planejado · Amarelo: ≥ 85% · Vermelho: abaixo de 85%.
+            Verde: produzido maior ou igual à meta do dia · Vermelho: produzido abaixo da meta do dia.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -460,14 +460,27 @@ export default function FinancialPanelPage() {
                 [...data.farol_days].reverse().map((row) => (
                   <tr key={row.day} className="border-b border-white/5 hover:bg-white/[0.02]">
                     <td className="px-6 py-3">
-                      <FarolDot farol={row.farol} />
+                      <FarolDot
+                        farol={row.farol}
+                        title={
+                          row.farol === "green"
+                            ? "Produzido maior ou igual à meta do dia"
+                            : "Produzido abaixo da meta do dia"
+                        }
+                      />
                     </td>
                     <td className="px-6 py-3 text-slate-300">
                       {new Date(row.day + "T12:00:00").toLocaleDateString("pt-BR")}
                     </td>
                     <td className="px-6 py-3 text-slate-400">{row.teams_count}</td>
                     <td className="px-6 py-3 text-slate-300">{brl(row.planned_brl)}</td>
-                    <td className="px-6 py-3 font-medium text-emerald-300">{brl(row.produced_brl)}</td>
+                    <td
+                      className={`px-6 py-3 font-medium ${
+                        row.produced_brl + 1e-9 >= row.planned_brl ? "text-signal-ok" : "text-signal-bad"
+                      }`}
+                    >
+                      {brl(row.produced_brl)}
+                    </td>
                   </tr>
                 ))
               )}

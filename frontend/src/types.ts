@@ -162,30 +162,6 @@ export interface FinancialPanelDashboard {
   teams: FinancialTeamBrief[];
 }
 
-export interface FinancialPhysicalComparisonPoint {
-  day: string;
-  physical_executed_pct: number;
-  produced_value_brl: number;
-  cumulative_produced_value_brl: number;
-  billing_forecast_daily_brl: number;
-}
-
-export interface FinancialPhysicalComparisonSummary {
-  last_day: string | null;
-  physical_executed_pct: number;
-  total_produced_brl: number;
-  obra_total_value_brl: number;
-  planned_financial_days_count: number;
-  daily_obra_reference_brl: number;
-}
-
-export interface FinancialPhysicalComparison {
-  project_id: number;
-  project_name: string;
-  points: FinancialPhysicalComparisonPoint[];
-  summary: FinancialPhysicalComparisonSummary;
-}
-
 export interface CsvImportResult {
   upserted: number;
   errors: string[];

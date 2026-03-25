@@ -55,7 +55,7 @@ export default function ObraTotalForm({
           Valor total da obra (R$)
         </label>
         <p className="mb-2 text-xs text-slate-500">
-          Usado no painel (avanço produtivo %), comparativo físico × produtivo e previsão de faturamento diária.
+          Usado no painel produtivo (avanço produtivo %), curvas e previsão de faturamento diária.
         </p>
         <input
           type="number"
