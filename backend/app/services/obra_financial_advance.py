@@ -62,10 +62,12 @@ def build_obra_financial_advance(db: Session, project: Project) -> ObraFinancial
 
     series: List[ObraFinancialAdvancePoint] = []
     cum_prod = 0.0
+    last_prod_day = max(produced_by_day.keys()) if produced_by_day else None
     for d in all_days:
         produced_acc: Optional[float] = None
         if d in produced_by_day:
             cum_prod += produced_by_day[d]
+        if last_prod_day is not None and d <= last_prod_day:
             produced_acc = round(cum_prod, 2)
 
         f_opt: Optional[float] = opt_by_day[d] if d in opt_by_day else None
