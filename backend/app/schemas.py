@@ -125,6 +125,7 @@ class StageDashboardRow(BaseModel):
     deviation_planning_optimistic_pct: Optional[float]
     deviation_planning_pessimistic_pct: Optional[float]
     farol_saldo: Farol
+    pending_execution_quantity: float
 
 
 class ObraSummary(BaseModel):
@@ -236,6 +237,7 @@ class FinancialFarolDayRow(BaseModel):
     produced_brl: float
     teams_count: int
     farol: Farol
+    produced_observation: Optional[str] = None
 
 
 class FinancialPanelSummary(BaseModel):
@@ -293,7 +295,7 @@ class FinancialPhysicalComparisonOut(BaseModel):
 
 class ObraFinancialAdvancePoint(BaseModel):
     day: date
-    physical_executed_pct: float
+    produced_accumulated_brl: Optional[float] = None
     forecast_optimistic_brl: Optional[float] = None
     forecast_pessimistic_brl: Optional[float] = None
 
@@ -302,6 +304,7 @@ class ObraFinancialAdvanceOut(BaseModel):
     project_id: int
     project_name: str
     obra_total_value_brl: Optional[float] = None
+    total_produced_brl: float
     has_billing_forecasts: bool
     series: List[ObraFinancialAdvancePoint]
 

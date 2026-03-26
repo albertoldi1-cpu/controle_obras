@@ -478,6 +478,7 @@ export default function FinancialPanelPage() {
                       className={`px-6 py-3 font-medium ${
                         row.produced_brl + 1e-9 >= row.planned_brl ? "text-signal-ok" : "text-signal-bad"
                       }`}
+                      title={row.produced_observation || undefined}
                     >
                       {brl(row.produced_brl)}
                     </td>

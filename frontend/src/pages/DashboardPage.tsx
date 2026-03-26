@@ -232,6 +232,7 @@ export default function DashboardPage() {
                 <th className="px-6 py-3">Peso</th>
                 <th className="px-6 py-3">Otimista</th>
                 <th className="px-6 py-3">Pessimista</th>
+                <th className="px-6 py-3">Pendente execução</th>
                 <th className="px-6 py-3">Executado</th>
                 <th className="px-6 py-3">Desvio × otimista (%)</th>
                 <th className="px-6 py-3">Desvio × pessimista (%)</th>
@@ -240,7 +241,7 @@ export default function DashboardPage() {
             <tbody>
               {stages.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-slate-500">
+                  <td colSpan={9} className="px-6 py-10 text-center text-slate-500">
                     Cadastre etapas e lançamentos diários para ver o farol.
                   </td>
                 </tr>
@@ -257,6 +258,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-3 text-slate-400">{(s.weight * 100).toFixed(1)}%</td>
                     <td className="px-6 py-3 text-slate-300">{s.pct_optimistic.toFixed(1)}%</td>
                     <td className="px-6 py-3 text-slate-300">{s.pct_pessimistic.toFixed(1)}%</td>
+                    <td className="px-6 py-3 text-amber-200/90">{s.pending_execution_quantity.toFixed(2)}</td>
                     <td className="px-6 py-3 text-accent-glow">{s.pct_executed.toFixed(1)}%</td>
                     <td
                       className={`px-6 py-3 font-medium ${

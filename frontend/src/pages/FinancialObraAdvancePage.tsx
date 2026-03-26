@@ -7,6 +7,10 @@ import ObraFinancialAdvanceChart from "../components/ObraFinancialAdvanceChart";
 
 type Ctx = { projectId: number };
 
+function brl(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function scenarioLabel(s: BillingForecastScenario) {
   return s === "optimistic" ? "Otimista" : "Pessimista";
 }
@@ -123,6 +127,18 @@ export default function FinancialObraAdvancePage() {
 
       <section className="glass rounded-2xl p-6">
         <h2 className="font-display text-xl font-semibold text-white">Curva</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">Valor total da obra</p>
+            <p className="mt-2 font-display text-2xl font-bold text-white">
+              {adv.obra_total_value_brl != null ? brl(adv.obra_total_value_brl) : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">Valor total produzido</p>
+            <p className="mt-2 font-display text-2xl font-bold text-accent-glow">{brl(adv.total_produced_brl || 0)}</p>
+          </div>
+        </div>
         <div className="mt-4">
           <ObraFinancialAdvanceChart data={adv.series} />
         </div>

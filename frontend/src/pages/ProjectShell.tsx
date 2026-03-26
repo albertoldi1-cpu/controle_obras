@@ -8,8 +8,8 @@ import { useAuth } from "../auth/AuthContext";
 
 const tabs = [
   { to: "painel", label: "Avanço físico", icon: Gauge, end: true },
-  { to: "financeiro", label: "Avanço Produtivo", icon: Banknote, end: false },
   { to: "avanco-financeiro", label: "Avanço Financeiro", icon: LineChart, end: true },
+  { to: "financeiro", label: "Avanço Produtivo", icon: Banknote, end: false },
   { to: "etapas", label: "Etapas", icon: Layers, end: true },
   { to: "lancamentos", label: "Lançamentos", icon: ClipboardList, end: true },
 ] as const;

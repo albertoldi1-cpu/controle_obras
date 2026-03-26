@@ -11,7 +11,7 @@ import {
 
 export type ObraFinPoint = {
   day: string;
-  physical_executed_pct: number;
+  produced_accumulated_brl?: number | null;
   forecast_optimistic_brl?: number | null;
   forecast_pessimistic_brl?: number | null;
 };
@@ -25,7 +25,7 @@ function fmtBrl(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 
-const NAME_PHYS = "Avanço físico executado (%)";
+const NAME_PROD = "Valor produzido (acum.)";
 const NAME_OPT = "Previsão financeira (otimista)";
 const NAME_PES = "Previsão financeira (pessimista)";
 
@@ -61,12 +61,12 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
           <YAxis
             yAxisId="left"
             orientation="left"
-            domain={[0, 100]}
+            domain={[0, "auto"]}
             tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-            label={{ value: "% obra (físico)", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 11 }}
-            unit="%"
+            tickFormatter={(v) => (typeof v === "number" ? `${(v / 1000).toFixed(0)}k` : String(v))}
+            label={{ value: "R$ acum.", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 11 }}
           />
           <YAxis
             yAxisId="right"
@@ -77,15 +77,12 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
             axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
             tickFormatter={(v) => (typeof v === "number" ? `${(v / 1000).toFixed(0)}k` : String(v))}
             width={56}
-            label={{ value: "R$ / dia", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 11 }}
+            label={{ value: "R$ / dia (previsão)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 11 }}
           />
           <Tooltip
             formatter={(value: number | undefined, name: string | undefined) => {
               if (value === undefined || value === null || (typeof value === "number" && Number.isNaN(value))) {
                 return ["—", name ?? ""];
-              }
-              if (name === NAME_PHYS) {
-                return [`${Number(value).toFixed(2)}%`, name];
               }
               return [fmtBrl(Number(value)), name ?? ""];
             }}
@@ -97,8 +94,8 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
           <Line
             yAxisId="left"
             type="monotone"
-            dataKey="physical_executed_pct"
-            name={NAME_PHYS}
+            dataKey="produced_accumulated_brl"
+            name={NAME_PROD}
             stroke="#94a3b8"
             strokeWidth={3}
             strokeDasharray="6 4"

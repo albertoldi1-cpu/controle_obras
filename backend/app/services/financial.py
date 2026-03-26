@@ -90,6 +90,7 @@ def build_financial_panel_dashboard(
     by_day_team_meta: dict[date, dict[int, float]] = defaultdict(dict)
     by_day_team_planning: dict[date, dict[int, float]] = defaultdict(dict)
     by_day_produced: dict[date, float] = defaultdict(float)
+    by_day_observations: dict[date, list[str]] = defaultdict(list)
     by_day_team_ids: dict[date, set[int]] = defaultdict(set)
 
     def _planning_brl(row) -> float:
@@ -99,8 +100,14 @@ def build_financial_panel_dashboard(
     for p in plans_f:
         by_day_team_meta[p.day][p.team_id] = float(p.daily_target_brl or 0.0)
         by_day_team_planning[p.day][p.team_id] = _planning_brl(p)
+    team_name_by_id = {t.id: t.name for t in team_rows}
+
     for p in prods_f:
         by_day_produced[p.day] += float(p.produced_value_brl)
+        obs = (p.observation or "").strip()
+        if obs:
+            team_name = team_name_by_id.get(p.team_id, f"Equipe {p.team_id}")
+            by_day_observations[p.day].append(f"{team_name}: {obs}")
         if float(p.produced_value_brl) > 0:
             by_day_team_ids[p.day].add(p.team_id)
 
@@ -154,6 +161,7 @@ def build_financial_panel_dashboard(
                 produced_brl=dr,
                 teams_count=len(by_day_team_ids.get(d, set())),
                 farol=_farol(dp, dr),
+                produced_observation=(" | ".join(by_day_observations.get(d, []))[:2000] or None),
             )
         )
 

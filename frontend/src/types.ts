@@ -58,6 +58,7 @@ export interface StageDashboardRow {
   deviation_planning_optimistic_pct: number | null;
   deviation_planning_pessimistic_pct: number | null;
   farol_saldo: Farol;
+  pending_execution_quantity: number;
 }
 
 export interface ObraSummary {
@@ -89,7 +90,7 @@ export interface Dashboard {
 
 export interface ObraFinancialAdvancePoint {
   day: string;
-  physical_executed_pct: number;
+  produced_accumulated_brl?: number | null;
   forecast_optimistic_brl?: number | null;
   forecast_pessimistic_brl?: number | null;
 }
@@ -98,6 +99,7 @@ export interface ObraFinancialAdvance {
   project_id: number;
   project_name: string;
   obra_total_value_brl?: number | null;
+  total_produced_brl: number;
   has_billing_forecasts: boolean;
   series: ObraFinancialAdvancePoint[];
 }
@@ -168,6 +170,7 @@ export interface FinancialFarolDayRow {
   produced_brl: number;
   teams_count: number;
   farol: Farol;
+  produced_observation?: string | null;
 }
 
 export interface FinancialPanelSummary {

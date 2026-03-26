@@ -266,6 +266,7 @@ def build_dashboard(db: Session, project: Project) -> dict:
         sum_plan_o, sum_plan_p = planning_sums.get(st.id, (0.0, 0.0))
         pending_o = max(tq - sum_plan_o, 0.0)
         pending_p = max(tq - sum_plan_p, 0.0)
+        pending_exec = max(tq - cx, 0.0)
         stage_rows.append(
             {
                 "stage_id": st.id,
@@ -289,6 +290,7 @@ def build_dashboard(db: Session, project: Project) -> dict:
                 "deviation_planning_optimistic_pct": _planning_deviation_pct(sum_plan_o, tq),
                 "deviation_planning_pessimistic_pct": _planning_deviation_pct(sum_plan_p, tq),
                 "farol_saldo": _stage_planning_farol(tq, sum_plan_o, sum_plan_p),
+                "pending_execution_quantity": round(pending_exec, 3),
             }
         )
 
