@@ -66,18 +66,7 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
             tickFormatter={(v) => (typeof v === "number" ? `${(v / 1000).toFixed(0)}k` : String(v))}
-            label={{ value: "R$ acum.", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 11 }}
-          />
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            domain={[0, "auto"]}
-            tick={{ fill: "#94a3b8", fontSize: 10 }}
-            tickLine={false}
-            axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-            tickFormatter={(v) => (typeof v === "number" ? `${(v / 1000).toFixed(0)}k` : String(v))}
-            width={56}
-            label={{ value: "R$ / dia (previsão)", angle: 90, position: "insideRight", fill: "#64748b", fontSize: 11 }}
+            label={{ value: "R$ (valores)", angle: -90, position: "insideLeft", fill: "#64748b", fontSize: 11 }}
           />
           <Tooltip
             formatter={(value: number | undefined, name: string | undefined) => {
@@ -104,7 +93,7 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
             connectNulls={false}
           />
           <Line
-            yAxisId="right"
+            yAxisId="left"
             type="monotone"
             dataKey="forecast_optimistic_brl"
             name={NAME_OPT}
@@ -115,7 +104,7 @@ export default function ObraFinancialAdvanceChart({ data }: { data: ObraFinPoint
             connectNulls={false}
           />
           <Line
-            yAxisId="right"
+            yAxisId="left"
             type="monotone"
             dataKey="forecast_pessimistic_brl"
             name={NAME_PES}
