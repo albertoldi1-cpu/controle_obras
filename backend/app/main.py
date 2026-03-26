@@ -594,6 +594,8 @@ def export_financial_physical_comparison_xlsx(
 @app.get("/api/projects/{project_id}/financial/obra-advance", response_model=ObraFinancialAdvanceOut)
 def get_obra_financial_advance(
     project_id: int,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -604,7 +606,7 @@ def get_obra_financial_advance(
     )
     if not p:
         raise HTTPException(404, "Projeto não encontrado")
-    return build_obra_financial_advance(db, p)
+    return build_obra_financial_advance(db, p, date_from, date_to)
 
 
 @app.get("/api/projects/{project_id}/financial/billing-forecasts", response_model=List[BillingForecastOut])

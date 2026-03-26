@@ -255,8 +255,10 @@ export const api = {
       req(`/api/projects/${projectId}/financial/production/${prodId}`, { method: "DELETE" }),
     importSpreadsheet: (projectId: number, kind: "plans" | "production", file: File) =>
       postSpreadsheetImport(`/api/projects/${projectId}/financial/import.xls?kind=${kind}`, file),
-    obraAdvance: (projectId: number) =>
-      req<ObraFinancialAdvance>(`/api/projects/${projectId}/financial/obra-advance`),
+    obraAdvance: (projectId: number, q?: { date_from?: string; date_to?: string }) =>
+      req<ObraFinancialAdvance>(
+        `/api/projects/${projectId}/financial/obra-advance${financialQueryString(q)}`
+      ),
     listBillingForecasts: (projectId: number) =>
       req<BillingForecastEntry[]>(`/api/projects/${projectId}/financial/billing-forecasts`),
     createBillingForecast: (

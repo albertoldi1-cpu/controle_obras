@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Pencil, Trash2 } from "lucide-react";
+import { Filter, Pencil, Trash2 } from "lucide-react";
 import { api } from "../api";
 import type { BillingForecastEntry, BillingForecastScenario, ObraFinancialAdvance } from "../types";
 import ObraFinancialAdvanceChart from "../components/ObraFinancialAdvanceChart";
@@ -31,6 +31,9 @@ export default function FinancialObraAdvancePage() {
   const [formErr, setFormErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [day, setDay] = useState(defaultDay);
   const [amount, setAmount] = useState("");
@@ -38,8 +41,12 @@ export default function FinancialObraAdvancePage() {
 
   const loadAll = useCallback(() => {
     setErr(null);
+    const q = {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    };
     return Promise.all([
-      api.financial.obraAdvance(projectId),
+      api.financial.obraAdvance(projectId, q),
       api.financial.listBillingForecasts(projectId),
     ]).then(
       ([a, r]) => {
@@ -48,7 +55,7 @@ export default function FinancialObraAdvancePage() {
       },
       (e) => setErr(e instanceof Error ? e.message : "Erro ao carregar")
     );
-  }, [projectId]);
+  }, [projectId, dateFrom, dateTo]);
 
   useEffect(() => {
     loadAll();
@@ -127,6 +134,38 @@ export default function FinancialObraAdvancePage() {
 
       <section className="glass rounded-2xl p-6">
         <h2 className="font-display text-xl font-semibold text-white">Curva</h2>
+
+        <div className="mt-4 flex flex-wrap items-end gap-4">
+          <Filter className="h-5 w-5 text-accent" />
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Data inicial</label>
+            <input
+              type="date"
+              className="rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Data final</label>
+            <input
+              type="date"
+              className="rounded-xl border border-white/10 bg-ink-950/80 px-3 py-2 text-white"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          {(dateFrom || dateTo) ? (
+            <button
+              type="button"
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="rounded-xl border border-white/15 px-3 py-2 text-xs text-slate-300 hover:bg-white/5"
+            >
+              Limpar filtro
+            </button>
+          ) : null}
+        </div>
+
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-xs uppercase tracking-wider text-slate-500">Valor total da obra</p>

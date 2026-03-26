@@ -31,32 +31,52 @@ def _billing_by_scenario(
     return opt, pes
 
 
-def build_obra_financial_advance(db: Session, project: Project) -> ObraFinancialAdvanceOut:
+def build_obra_financial_advance(
+    db: Session,
+    project: Project,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> ObraFinancialAdvanceOut:
     pid = project.id
     opt_by_day, pes_by_day = _billing_by_scenario(db, pid)
 
-    prod_rows = list(
-        db.scalars(
-            select(FinancialDailyProduction)
-            .where(FinancialDailyProduction.project_id == pid)
-            .order_by(FinancialDailyProduction.day)
-        ).all()
-    )
+    q_prod = select(FinancialDailyProduction).where(FinancialDailyProduction.project_id == pid)
+    if date_from:
+        q_prod = q_prod.where(FinancialDailyProduction.day >= date_from)
+    if date_to:
+        q_prod = q_prod.where(FinancialDailyProduction.day <= date_to)
+    prod_rows = list(db.scalars(q_prod.order_by(FinancialDailyProduction.day)).all())
     produced_by_day: Dict[date, float] = {}
     for r in prod_rows:
         produced_by_day[r.day] = produced_by_day.get(r.day, 0.0) + float(r.produced_value_brl or 0.0)
     has_forecasts = len(opt_by_day) > 0 or len(pes_by_day) > 0
 
+    # Filtra previsões pelo intervalo de datas
+    if date_from:
+        opt_by_day = {d: v for d, v in opt_by_day.items() if d >= date_from}
+        pes_by_day = {d: v for d, v in pes_by_day.items() if d >= date_from}
+    if date_to:
+        opt_by_day = {d: v for d, v in opt_by_day.items() if d <= date_to}
+        pes_by_day = {d: v for d, v in pes_by_day.items() if d <= date_to}
+
     row_days = set(opt_by_day.keys()) | set(pes_by_day.keys())
     prod_days = set(produced_by_day.keys())
     all_days = sorted(row_days | prod_days)
+
+    # Valor total da obra = acumulado otimista no último lançamento otimista (se houver)
+    all_opt_days, all_pes_days = _billing_by_scenario(db, pid)
+    cum_opt_total = sum(all_opt_days.values()) if all_opt_days else None
+    obra_total_display = cum_opt_total if cum_opt_total and cum_opt_total > 0 else project.obra_total_value_brl
+
+    total_produced = round(sum(produced_by_day.values()), 2)
+
     if not all_days:
         return ObraFinancialAdvanceOut(
             project_id=project.id,
             project_name=project.name,
-            obra_total_value_brl=project.obra_total_value_brl,
-            total_produced_brl=0.0,
-            has_billing_forecasts=False,
+            obra_total_value_brl=obra_total_display,
+            total_produced_brl=total_produced,
+            has_billing_forecasts=has_forecasts,
             series=[],
         )
 
@@ -85,8 +105,8 @@ def build_obra_financial_advance(db: Session, project: Project) -> ObraFinancial
     return ObraFinancialAdvanceOut(
         project_id=project.id,
         project_name=project.name,
-        obra_total_value_brl=project.obra_total_value_brl,
-        total_produced_brl=round(sum(produced_by_day.values()), 2),
+        obra_total_value_brl=obra_total_display,
+        total_produced_brl=total_produced,
         has_billing_forecasts=has_forecasts,
         series=series,
     )

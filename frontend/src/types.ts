@@ -73,8 +73,8 @@ export interface ObraSummary {
 
 export interface SeriesPoint {
   day: string;
-  optimistic: number;
-  pessimistic: number;
+  optimistic: number | null;
+  pessimistic: number | null;
   executed: number | null;
 }
 

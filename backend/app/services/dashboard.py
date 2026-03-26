@@ -51,6 +51,19 @@ def _last_execution_day(stages: list) -> Optional[date]:
     return last
 
 
+def _last_planning_days(stages: list) -> Tuple[Optional[date], Optional[date]]:
+    """Último dia com lançamento de planejamento (otimista e pessimista)."""
+    last_opt: Optional[date] = None
+    last_pes: Optional[date] = None
+    for st in stages:
+        for e in st.entries:
+            if _nf(e.planned_optimistic) > 0:
+                last_opt = max(last_opt, e.day) if last_opt else e.day
+            if _nf(e.planned_pessimistic) > 0:
+                last_pes = max(last_pes, e.day) if last_pes else e.day
+    return last_opt, last_pes
+
+
 def _reference_date(stages: list) -> Optional[date]:
     """Último dia com execução; senão último dia com qualquer lançamento (para KPIs)."""
     last_exec = _last_execution_day(stages)
@@ -246,6 +259,7 @@ def build_dashboard(db: Session, project: Project) -> dict:
     ref = _reference_date(stages)
     last_ex = _last_execution_day(stages)
     days, pct_o, pct_p, pct_e = _weighted_series(stages)
+    last_plan_opt, last_plan_pes = _last_planning_days(stages)
 
     by_stage = _entries_by_stage(stages)
     planning_sums = _planning_sums_by_stage(db, project.id)
@@ -306,11 +320,13 @@ def build_dashboard(db: Session, project: Project) -> dict:
         ex_val: Optional[float] = None
         if last_ex is not None and d <= last_ex:
             ex_val = pct_e[i]
+        opt_val: Optional[float] = pct_o[i] if (last_plan_opt is None or d <= last_plan_opt) else None
+        pes_val: Optional[float] = pct_p[i] if (last_plan_pes is None or d <= last_plan_pes) else None
         series.append(
             {
                 "day": d,
-                "optimistic": pct_o[i],
-                "pessimistic": pct_p[i],
+                "optimistic": opt_val,
+                "pessimistic": pes_val,
                 "executed": ex_val,
             }
         )
