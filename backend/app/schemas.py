@@ -140,8 +140,8 @@ class ObraSummary(BaseModel):
 
 class SeriesPoint(BaseModel):
     day: date
-    optimistic: float
-    pessimistic: float
+    optimistic: Optional[float] = None
+    pessimistic: Optional[float] = None
     executed: Optional[float] = None
 
 

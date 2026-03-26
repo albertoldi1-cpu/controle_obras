@@ -63,10 +63,9 @@ def build_obra_financial_advance(
     prod_days = set(produced_by_day.keys())
     all_days = sorted(row_days | prod_days)
 
-    # Valor total da obra = acumulado otimista no último lançamento otimista (se houver)
-    all_opt_days, all_pes_days = _billing_by_scenario(db, pid)
-    cum_opt_total = sum(all_opt_days.values()) if all_opt_days else None
-    obra_total_display = cum_opt_total if cum_opt_total and cum_opt_total > 0 else project.obra_total_value_brl
+    # "Valor total da obra" deve permanecer o valor cadastrado do projeto.
+    # (Mesmo quando aplicamos filtro de datas no painel.)
+    obra_total_display = project.obra_total_value_brl
 
     total_produced = round(sum(produced_by_day.values()), 2)
 
