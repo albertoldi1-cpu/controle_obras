@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.auth_core import create_access_token, hash_password, verify_password
@@ -422,28 +423,43 @@ def bulk_planned(
         raise HTTPException(404, "Projeto não encontrado")
     stage_ids = set(db.scalars(select(Stage.id).where(Stage.project_id == project_id)).all())
     count = 0
+    # Garante idempotência para payloads com duplicatas da mesma etapa+dia.
+    dedup: dict[tuple[int, date], object] = {}
     for item in body.entries:
-        if item.stage_id not in stage_ids:
-            raise HTTPException(400, f"Etapa {item.stage_id} não pertence ao projeto")
-        row = db.scalar(
-            select(DailyEntry).where(DailyEntry.stage_id == item.stage_id, DailyEntry.day == item.day)
-        )
-        if row:
-            row.planned_optimistic = item.planned_optimistic
-            row.planned_pessimistic = item.planned_pessimistic
-        else:
-            db.add(
-                DailyEntry(
-                    stage_id=item.stage_id,
-                    day=item.day,
-                    planned_optimistic=item.planned_optimistic,
-                    planned_pessimistic=item.planned_pessimistic,
-                    executed=0.0,
-                    execution_note=None,
-                )
+        dedup[(item.stage_id, item.day)] = item
+
+    try:
+        for item in dedup.values():
+            if item.stage_id not in stage_ids:
+                raise HTTPException(400, f"Etapa {item.stage_id} não pertence ao projeto")
+            row = db.scalar(
+                select(DailyEntry).where(DailyEntry.stage_id == item.stage_id, DailyEntry.day == item.day)
             )
-        count += 1
-    db.commit()
+            if row:
+                row.planned_optimistic = item.planned_optimistic
+                row.planned_pessimistic = item.planned_pessimistic
+            else:
+                db.add(
+                    DailyEntry(
+                        stage_id=item.stage_id,
+                        day=item.day,
+                        planned_optimistic=item.planned_optimistic,
+                        planned_pessimistic=item.planned_pessimistic,
+                        executed=0.0,
+                        execution_note=None,
+                    )
+                )
+            count += 1
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(400, f"Conflito ao salvar lançamentos planejados: {e.orig}")
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(500, f"Falha ao persistir lançamentos planejados: {e}")
     return {"upserted": count}
 
 
@@ -459,29 +475,44 @@ def bulk_executed(
         raise HTTPException(404, "Projeto não encontrado")
     stage_ids = set(db.scalars(select(Stage.id).where(Stage.project_id == project_id)).all())
     count = 0
+    # Garante idempotência para payloads com duplicatas da mesma etapa+dia.
+    dedup: dict[tuple[int, date], object] = {}
     for item in body.entries:
-        if item.stage_id not in stage_ids:
-            raise HTTPException(400, f"Etapa {item.stage_id} não pertence ao projeto")
-        row = db.scalar(
-            select(DailyEntry).where(DailyEntry.stage_id == item.stage_id, DailyEntry.day == item.day)
-        )
-        note = (item.execution_note or "").strip() or None
-        if row:
-            row.executed = item.executed
-            row.execution_note = note
-        else:
-            db.add(
-                DailyEntry(
-                    stage_id=item.stage_id,
-                    day=item.day,
-                    planned_optimistic=0.0,
-                    planned_pessimistic=0.0,
-                    executed=item.executed,
-                    execution_note=note,
-                )
+        dedup[(item.stage_id, item.day)] = item
+
+    try:
+        for item in dedup.values():
+            if item.stage_id not in stage_ids:
+                raise HTTPException(400, f"Etapa {item.stage_id} não pertence ao projeto")
+            row = db.scalar(
+                select(DailyEntry).where(DailyEntry.stage_id == item.stage_id, DailyEntry.day == item.day)
             )
-        count += 1
-    db.commit()
+            note = (item.execution_note or "").strip() or None
+            if row:
+                row.executed = item.executed
+                row.execution_note = note
+            else:
+                db.add(
+                    DailyEntry(
+                        stage_id=item.stage_id,
+                        day=item.day,
+                        planned_optimistic=0.0,
+                        planned_pessimistic=0.0,
+                        executed=item.executed,
+                        execution_note=note,
+                    )
+                )
+            count += 1
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(400, f"Conflito ao salvar lançamentos executados: {e.orig}")
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(500, f"Falha ao persistir lançamentos executados: {e}")
     return {"upserted": count}
 
 
