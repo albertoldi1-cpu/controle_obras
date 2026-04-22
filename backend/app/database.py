@@ -230,6 +230,42 @@ def migrate_financial_obra_plan_pessimistic():
         conn.execute(text(f"ALTER TABLE financial_obra_plan_daily ADD COLUMN planned_pessimistic_brl {typ}"))
 
 
+def sync_postgres_pk_sequences():
+    """Sincroniza sequências de PK com o maior ID atual (PostgreSQL)."""
+    if engine.dialect.name != "postgresql":
+        return
+    tables = (
+        "users",
+        "projects",
+        "stages",
+        "daily_entries",
+        "financial_production_entries",
+        "financial_teams",
+        "financial_daily_plans",
+        "financial_daily_production",
+        "financial_obra_plan_daily",
+        "financial_billing_forecasts",
+    )
+    with engine.begin() as conn:
+        for table in tables:
+            try:
+                conn.execute(
+                    text(
+                        f"""
+                        SELECT setval(
+                            pg_get_serial_sequence('{table}', 'id'),
+                            COALESCE(MAX(id), 1),
+                            MAX(id) IS NOT NULL
+                        )
+                        FROM {table}
+                        """
+                    )
+                )
+            except Exception:
+                # Mantém startup resiliente mesmo se alguma tabela não estiver disponível.
+                pass
+
+
 def init_db():
     from app import models  # noqa: F401 — registra tabelas
 
@@ -241,3 +277,4 @@ def init_db():
     migrate_financial_team_default_target()
     migrate_financial_daily_plan_planning()
     migrate_financial_obra_plan_pessimistic()
+    sync_postgres_pk_sequences()
