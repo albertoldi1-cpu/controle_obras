@@ -43,6 +43,8 @@ export default function EntriesPage() {
   const [loading, setLoading] = useState(true);
   const [savingPlan, setSavingPlan] = useState(false);
   const [savingEx, setSavingEx] = useState(false);
+  const [dirtyPlanKeys, setDirtyPlanKeys] = useState<Set<string>>(new Set());
+  const [dirtyExecKeys, setDirtyExecKeys] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
 
   const days = useMemo(() => enumerateDays(from, to), [from, to]);
@@ -67,6 +69,8 @@ export default function EntriesPage() {
         }
       });
       setCells(next);
+      setDirtyPlanKeys(new Set());
+      setDirtyExecKeys(new Set());
     } catch {
       setMsg("Erro ao carregar dados.");
     } finally {
@@ -93,6 +97,11 @@ export default function EntriesPage() {
         note: prev[key]?.note ?? "",
       },
     }));
+    setDirtyPlanKeys((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
   }
 
   function setExec(stageId: number, day: string, field: "ex" | "note", value: string) {
@@ -106,28 +115,48 @@ export default function EntriesPage() {
         note: field === "note" ? value : prev[key]?.note ?? "",
       },
     }));
+    setDirtyExecKeys((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }
+
+  function parseCellKey(key: string): { stageId: number; day: string } | null {
+    const [stageRaw, day] = key.split("|");
+    const stageId = Number(stageRaw);
+    if (!Number.isFinite(stageId) || !day) return null;
+    return { stageId, day };
   }
 
   async function savePlanned() {
     setSavingPlan(true);
     setMsg(null);
     try {
+      if (dirtyPlanKeys.size === 0) {
+        setMsg("Nenhuma alteração de planejamento para salvar.");
+        return;
+      }
       const entries: Array<{
         stage_id: number;
         day: string;
         planned_optimistic: number;
         planned_pessimistic: number;
       }> = [];
-      for (const st of stages) {
-        for (const day of days) {
-          const c = getCell(st.id, day);
-          entries.push({
-            stage_id: st.id,
-            day,
-            planned_optimistic: parseFloat(c.opt.replace(",", ".")) || 0,
-            planned_pessimistic: parseFloat(c.pes.replace(",", ".")) || 0,
-          });
-        }
+      for (const key of dirtyPlanKeys) {
+        const parsed = parseCellKey(key);
+        if (!parsed) continue;
+        const c = getCell(parsed.stageId, parsed.day);
+        entries.push({
+          stage_id: parsed.stageId,
+          day: parsed.day,
+          planned_optimistic: parseFloat(c.opt.replace(",", ".")) || 0,
+          planned_pessimistic: parseFloat(c.pes.replace(",", ".")) || 0,
+        });
+      }
+      if (entries.length === 0) {
+        setMsg("Nenhuma alteração de planejamento válida para salvar.");
+        return;
       }
       const r = await api.bulkPlanned(projectId, entries);
       setMsg(`Planejamento salvo (${r.upserted} células).`);
@@ -144,23 +173,31 @@ export default function EntriesPage() {
     setSavingEx(true);
     setMsg(null);
     try {
+      if (dirtyExecKeys.size === 0) {
+        setMsg("Nenhuma alteração de execução para salvar.");
+        return;
+      }
       const entries: Array<{
         stage_id: number;
         day: string;
         executed: number;
         execution_note: string | null;
       }> = [];
-      for (const st of stages) {
-        for (const day of days) {
-          const c = getCell(st.id, day);
-          const note = c.note.trim() || null;
-          entries.push({
-            stage_id: st.id,
-            day,
-            executed: parseFloat(c.ex.replace(",", ".")) || 0,
-            execution_note: note,
-          });
-        }
+      for (const key of dirtyExecKeys) {
+        const parsed = parseCellKey(key);
+        if (!parsed) continue;
+        const c = getCell(parsed.stageId, parsed.day);
+        const note = c.note.trim() || null;
+        entries.push({
+          stage_id: parsed.stageId,
+          day: parsed.day,
+          executed: parseFloat(c.ex.replace(",", ".")) || 0,
+          execution_note: note,
+        });
+      }
+      if (entries.length === 0) {
+        setMsg("Nenhuma alteração de execução válida para salvar.");
+        return;
       }
       const r = await api.bulkExecuted(projectId, entries);
       setMsg(`Execução salva (${r.upserted} células).`);
